@@ -16,7 +16,10 @@ limitations under the License.
 package v1beta1
 
 import (
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -31,33 +34,35 @@ func (r *CustomDomainRegistration) SetupWebhookWithManager(mgr ctrl.Manager) err
 		Complete()
 }
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-
-// TODO(user): change verbs to "verbs=create;update;delete" if you want to enable deletion validation.
 // +kubebuilder:webhook:verbs=create;update,path=/validate-domain-skygear-io-v1beta1-customdomainregistration,mutating=false,failurePolicy=fail,groups=domain.skygear.io,resources=customdomainregistrations,versions=v1beta1,name=vcustomdomainregistration.kb.io
 
 var _ webhook.Validator = &CustomDomainRegistration{}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
 func (r *CustomDomainRegistration) ValidateCreate() error {
-	customdomainregistrationlog.Info("validate create", "name", r.Name)
-
-	// TODO(user): fill in your validation logic upon object creation.
-	return nil
+	return r.validate()
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
 func (r *CustomDomainRegistration) ValidateUpdate(old runtime.Object) error {
-	customdomainregistrationlog.Info("validate update", "name", r.Name)
-
-	// TODO(user): fill in your validation logic upon object update.
-	return nil
+	return r.validate()
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
 func (r *CustomDomainRegistration) ValidateDelete() error {
-	customdomainregistrationlog.Info("validate delete", "name", r.Name)
+	return nil
+}
 
-	// TODO(user): fill in your validation logic upon object deletion.
+func (r *CustomDomainRegistration) validate() error {
+	var errs field.ErrorList
+	if r.Name != r.Spec.DomainName {
+		errs = append(errs, field.Invalid(field.NewPath("spec", "domainName"), r.Spec.DomainName, "domainName must be same as resource name"))
+	}
+
+	if len(errs) != 0 {
+		return apierrors.NewInvalid(
+			schema.GroupKind{Group: GroupVersion.Group, Kind: "CustomDomainRegistration"},
+			r.Name, errs)
+	}
 	return nil
 }
