@@ -19,22 +19,45 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // CustomDomainRegistrationSpec defines the desired state of CustomDomainRegistration
 type CustomDomainRegistrationSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// DomainName is the custom domain name registered with the app.
+	DomainName string `json:"domainName,omitempty"`
+}
 
-	// Foo is an example field of CustomDomainRegistration. Edit CustomDomainRegistration_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+// CustomDomainRegistrationConditionType is a valid value for CustomDomainRegistrationCondition.Type
+type CustomDomainRegistrationConditionType string
+
+const (
+	// Accepted indicates the registration is accepted.
+	RegistrationAccepted CustomDomainRegistrationConditionType = "Accepted"
+)
+
+// CustomDomainRegistrationCondition contains details for the current condition of this registration.
+type CustomDomainRegistrationCondition struct {
+	// Type is the type of the condition.
+	Type CustomDomainRegistrationConditionType `json:"type"`
+	// Status is the status of the condition.
+	// Can be True, False, Unknown.
+	Status metav1.ConditionStatus `json:"status"`
+	// Last time the condition transitioned from one status to another.
+	// +optional
+	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
+	// Unique, one-word, CamelCase reason for the condition's last transition.
+	// +optional
+	Reason string `json:"reason,omitempty"`
+	// Human-readable message indicating details about last transition.
+	// +optional
+	Message string `json:"message,omitempty"`
 }
 
 // CustomDomainRegistrationStatus defines the observed state of CustomDomainRegistration
 type CustomDomainRegistrationStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Current state of registration.
+	// +optional
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	Conditions []CustomDomainRegistrationCondition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
 // +kubebuilder:object:root=true
