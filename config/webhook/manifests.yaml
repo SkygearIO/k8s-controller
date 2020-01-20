@@ -1,0 +1,26 @@
+
+---
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: ValidatingWebhookConfiguration
+metadata:
+  creationTimestamp: null
+  name: validating-webhook-configuration
+webhooks:
+- clientConfig:
+    caBundle: Cg==
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-domain-skygear-io-v1beta1-customdomainregistration
+  failurePolicy: Fail
+  name: vcustomdomainregistration.kb.io
+  rules:
+  - apiGroups:
+    - domain.skygear.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - customdomainregistrations

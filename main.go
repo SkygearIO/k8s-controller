@@ -72,6 +72,10 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "CustomDomainRegistration")
 		os.Exit(1)
 	}
+	if err = (&domainv1beta1.CustomDomainRegistration{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "CustomDomainRegistration")
+		os.Exit(1)
+	}
 	// +kubebuilder:scaffold:builder
 
 	setupLog.Info("starting manager")
