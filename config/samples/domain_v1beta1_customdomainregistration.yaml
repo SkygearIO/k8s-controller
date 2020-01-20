@@ -1,0 +1,7 @@
+apiVersion: domain.skygear.io/v1beta1
+kind: CustomDomainRegistration
+metadata:
+  name: customdomainregistration-sample
+spec:
+  # Add fields here
+  foo: bar

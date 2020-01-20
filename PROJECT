@@ -1,3 +1,7 @@
 domain: skygear.io
 repo: github.com/skygeario/k8s-controller
+resources:
+- group: domain
+  kind: CustomDomainRegistration
+  version: v1beta1
 version: "2"
