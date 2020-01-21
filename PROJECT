@@ -4,4 +4,7 @@ resources:
 - group: domain
   kind: CustomDomainRegistration
   version: v1beta1
+- group: domain
+  kind: CustomDomain
+  version: v1beta1
 version: "2"
