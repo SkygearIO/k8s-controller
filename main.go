@@ -64,16 +64,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+		if err = (&domainv1beta1.CustomDomainRegistration{}).SetupWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "CustomDomainRegistration")
+			os.Exit(1)
+		}
+	}
 	if err = (&controllers.CustomDomainRegistrationReconciler{
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("controllers").WithName("CustomDomainRegistration"),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CustomDomainRegistration")
-		os.Exit(1)
-	}
-	if err = (&domainv1beta1.CustomDomainRegistration{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "CustomDomainRegistration")
 		os.Exit(1)
 	}
 	if err = (&controllers.CustomDomainReconciler{
