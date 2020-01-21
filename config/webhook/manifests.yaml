@@ -11,6 +11,25 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
+      path: /validate-domain-skygear-io-v1beta1-customdomain
+  failurePolicy: Fail
+  name: vcustomdomain.kb.io
+  rules:
+  - apiGroups:
+    - domain.skygear.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    - DELETE
+    resources:
+    - customdomains
+- clientConfig:
+    caBundle: Cg==
+    service:
+      name: webhook-service
+      namespace: system
       path: /validate-domain-skygear-io-v1beta1-customdomainregistration
   failurePolicy: Fail
   name: vcustomdomainregistration.kb.io

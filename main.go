@@ -69,6 +69,10 @@ func main() {
 			setupLog.Error(err, "unable to create webhook", "webhook", "CustomDomainRegistration")
 			os.Exit(1)
 		}
+		if err = (&domainv1beta1.CustomDomain{}).SetupWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "CustomDomain")
+			os.Exit(1)
+		}
 	}
 	if err = (&controllers.CustomDomainRegistrationReconciler{
 		Client: mgr.GetClient(),
