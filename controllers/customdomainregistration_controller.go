@@ -23,7 +23,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	domain "github.com/skygeario/k8s-controller/api"
 	domainv1beta1 "github.com/skygeario/k8s-controller/api/v1beta1"
+	"github.com/skygeario/k8s-controller/util/slice"
 )
 
 // CustomDomainRegistrationReconciler reconciles a CustomDomainRegistration object
@@ -37,10 +39,31 @@ type CustomDomainRegistrationReconciler struct {
 // +kubebuilder:rbac:groups=domain.skygear.io,resources=customdomainregistrations/status,verbs=get;update;patch
 
 func (r *CustomDomainRegistrationReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	_ = context.Background()
+	ctx := context.Background()
 	_ = r.Log.WithValues("customdomainregistration", req.NamespacedName)
 
-	// your logic here
+	var reg domainv1beta1.CustomDomainRegistration
+	if err := r.Get(ctx, req.NamespacedName, &reg); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	if reg.DeletionTimestamp == nil {
+		finalizerAdded, err := r.ensureFinalizer(ctx, &reg)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if finalizerAdded {
+			return ctrl.Result{Requeue: true}, nil
+		}
+
+	} else {
+		err := r.removeFinalizer(ctx, &reg)
+		return ctrl.Result{}, err
+	}
+
+	if err := r.Status().Update(ctx, &reg); err != nil {
+		return ctrl.Result{}, err
+	}
 
 	return ctrl.Result{}, nil
 }
@@ -49,4 +72,19 @@ func (r *CustomDomainRegistrationReconciler) SetupWithManager(mgr ctrl.Manager) 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&domainv1beta1.CustomDomainRegistration{}).
 		Complete(r)
+}
+
+func (r *CustomDomainRegistrationReconciler) ensureFinalizer(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) (added bool, err error) {
+	if slice.ContainsString(reg.Finalizers, domain.DomainFinalizer) {
+		return false, nil
+	}
+	reg.Finalizers = append(reg.Finalizers, domain.DomainFinalizer)
+	added = true
+	err = r.Update(ctx, reg)
+	return
+}
+
+func (r *CustomDomainRegistrationReconciler) removeFinalizer(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) error {
+	reg.Finalizers = slice.RemoveString(reg.Finalizers, domain.DomainFinalizer)
+	return r.Update(ctx, reg)
 }
