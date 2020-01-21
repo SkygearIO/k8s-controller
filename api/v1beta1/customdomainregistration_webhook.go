@@ -40,12 +40,12 @@ var _ webhook.Validator = &CustomDomainRegistration{}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
 func (r *CustomDomainRegistration) ValidateCreate() error {
-	return r.validate()
+	return r.validate(nil)
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
 func (r *CustomDomainRegistration) ValidateUpdate(old runtime.Object) error {
-	return r.validate()
+	return r.validate(old.(*CustomDomainRegistration))
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
@@ -53,8 +53,11 @@ func (r *CustomDomainRegistration) ValidateDelete() error {
 	return nil
 }
 
-func (r *CustomDomainRegistration) validate() error {
+func (r *CustomDomainRegistration) validate(old *CustomDomainRegistration) error {
 	var errs field.ErrorList
+	if old != nil && old.Name != r.Name {
+		errs = append(errs, field.Invalid(field.NewPath("metadata", "name"), r.Name, "resource name cannot be changed"))
+	}
 	if r.Name != r.Spec.DomainName {
 		errs = append(errs, field.Invalid(field.NewPath("spec", "domainName"), r.Spec.DomainName, "domainName must be same as resource name"))
 	}
