@@ -49,8 +49,8 @@ spec:
             conditions:
               description: Current state of registration.
               items:
-                description: CustomDomainRegistrationCondition contains details for
-                  the current condition of this registration.
+                description: Condition contains details for the current condition
+                  of this resource
                 properties:
                   lastTransitionTime:
                     description: Last time the condition transitioned from one status
