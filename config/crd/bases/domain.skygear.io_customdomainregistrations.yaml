@@ -15,6 +15,8 @@ spec:
     plural: customdomainregistrations
     singular: customdomainregistration
   scope: Namespaced
+  subresources:
+    status: {}
   validation:
     openAPIV3Schema:
       description: CustomDomainRegistration is the Schema for the customdomainregistrations

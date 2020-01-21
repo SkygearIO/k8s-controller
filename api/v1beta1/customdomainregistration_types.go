@@ -61,6 +61,7 @@ type CustomDomainRegistrationStatus struct {
 }
 
 // +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 // CustomDomainRegistration is the Schema for the customdomainregistrations API
 type CustomDomainRegistration struct {

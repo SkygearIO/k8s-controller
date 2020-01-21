@@ -50,6 +50,7 @@ type CustomDomain struct {
 }
 
 // +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 // CustomDomainList contains a list of CustomDomain
 type CustomDomainList struct {
