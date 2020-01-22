@@ -16,11 +16,14 @@ limitations under the License.
 package main
 
 import (
+	"encoding/json"
 	"flag"
+	"io/ioutil"
 	"os"
 
 	domainv1beta1 "github.com/skygeario/k8s-controller/api/v1beta1"
 	"github.com/skygeario/k8s-controller/controllers"
+	"github.com/skygeario/k8s-controller/internal"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -44,14 +47,29 @@ func init() {
 func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
+	var enableWebhooks bool
+	var configFile string
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
+	flag.BoolVar(&enableWebhooks, "enable-webhooks", true, "Enable CRD webhooks.")
+	flag.StringVar(&configFile, "config-file", "", "Path to configuration JSON file.")
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(func(o *zap.Options) {
 		o.Development = true
 	}))
+
+	configJSON, err := ioutil.ReadFile(configFile)
+	if err != nil {
+		setupLog.Error(err, "unable read configuration")
+		os.Exit(1)
+	}
+	var config internal.Config
+	if err := json.Unmarshal(configJSON, &config); err != nil {
+		setupLog.Error(err, "unable parse configuration")
+		os.Exit(1)
+	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,
@@ -64,7 +82,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+	if enableWebhooks {
 		if err = (&domainv1beta1.CustomDomainRegistration{}).SetupWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "CustomDomainRegistration")
 			os.Exit(1)

@@ -22,14 +22,33 @@ import (
 
 // CustomDomainSpec defines the desired state of CustomDomain
 type CustomDomainSpec struct {
+	// LoadBalancerProvider is the load balancer provider for this domain.
+	LoadBalancerProvider *string `json:"loadBalancerProvider,omitempty"`
 	// Registrations are registrations from apps.
 	Registrations []corev1.ObjectReference `json:"registrations,omitempty"`
 }
 
+type CustomDomainDNSRecord struct {
+	// Name is name of DNS record
+	Name string `json:"name"`
+	// Type is type of DNS record
+	Type string `json:"type"`
+	// Value is value of DNS record
+	Value string `json:"value"`
+}
+
+// CustomDomainStatusRegistration defines the status of a registration
+type CustomDomainStatusRegistration struct {
+	// SourceNamespace is originating namespace of the registration
+	SourceNamespace string `json:"sourceNamespace"`
+	// DNSRecords are DNS records that should be associated with the domain
+	DNSRecords []CustomDomainDNSRecord `json:"dnsRecords"`
+}
+
 // CustomDomainStatus defines the observed state of CustomDomain
 type CustomDomainStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Registrations are statuses of the registrations
+	Registrations []CustomDomainStatusRegistration `json:"registrations,omitempty"`
 }
 
 // +kubebuilder:object:root=true
