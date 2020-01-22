@@ -20,20 +20,32 @@ import (
 
 	"github.com/go-logr/logr"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/skygeario/k8s-controller/api"
+	domain "github.com/skygeario/k8s-controller/api"
 	domainv1beta1 "github.com/skygeario/k8s-controller/api/v1beta1"
+	"github.com/skygeario/k8s-controller/loadbalancer"
+	"github.com/skygeario/k8s-controller/util/condition"
+	"github.com/skygeario/k8s-controller/util/finalizer"
 	"github.com/skygeario/k8s-controller/util/slice"
 )
+
+type LoadBalancer interface {
+	Provision(ctx context.Context, domain *domainv1beta1.CustomDomain) (providerType string, result *loadbalancer.ProvisionResult, err error)
+	Release(ctx context.Context, domain *domainv1beta1.CustomDomain) (ok bool, err error)
+}
 
 // CustomDomainReconciler reconciles a CustomDomain object
 type CustomDomainReconciler struct {
 	client.Client
-	Log    logr.Logger
-	Scheme *runtime.Scheme
+	Log          logr.Logger
+	Scheme       *runtime.Scheme
+	LoadBalancer LoadBalancer
 }
 
 // +kubebuilder:rbac:groups=domain.skygear.io,resources=customdomains,verbs=get;list;watch;create;update;patch;delete
@@ -43,12 +55,66 @@ func (r *CustomDomainReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error
 	ctx := context.Background()
 	_ = r.Log.WithValues("customdomain", req.NamespacedName)
 
-	var domain domainv1beta1.CustomDomain
-	if err := r.Get(ctx, req.NamespacedName, &domain); err != nil {
+	var d domainv1beta1.CustomDomain
+	if err := r.Get(ctx, req.NamespacedName, &d); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if err := r.validateRegistrations(ctx, &domain); err != nil {
+	if err := r.validateRegistrations(ctx, &d); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	var conditions []api.Condition
+	doFinalize := false
+	if d.DeletionTimestamp == nil {
+		finalizerAdded, err := finalizer.Ensure(r, ctx, &d, domain.DomainFinalizer)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if finalizerAdded {
+			return ctrl.Result{Requeue: true}, nil
+		}
+
+		provisioned, err := r.provisionLoadBalancer(ctx, &d)
+		if err != nil {
+			conditions = append(conditions, api.Condition{
+				Type:    string(domainv1beta1.DomainLoadBalancerProvisioned),
+				Status:  metav1.ConditionUnknown,
+				Message: err.Error(),
+			})
+		} else {
+			conditions = append(conditions, api.Condition{
+				Type:   string(domainv1beta1.DomainLoadBalancerProvisioned),
+				Status: condition.ToStatus(provisioned),
+			})
+		}
+
+	} else {
+		doFinalize = true
+
+		released, err := r.releaseLoadBalancer(ctx, &d)
+		if err != nil {
+			doFinalize = false
+			conditions = append(conditions, api.Condition{
+				Type:    string(domainv1beta1.DomainLoadBalancerProvisioned),
+				Status:  metav1.ConditionUnknown,
+				Message: err.Error(),
+			})
+		} else {
+			doFinalize = doFinalize && released
+			conditions = append(conditions, api.Condition{
+				Type:   string(domainv1beta1.DomainLoadBalancerProvisioned),
+				Status: condition.ToStatus(!released),
+			})
+		}
+	}
+
+	if err := r.Status().Update(ctx, &d); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	if doFinalize {
+		err := finalizer.Remove(r, ctx, &d, domain.DomainFinalizer)
 		return ctrl.Result{}, err
 	}
 
@@ -92,4 +158,37 @@ func (r *CustomDomainReconciler) validateRegistrations(ctx context.Context, d *d
 		}
 	}
 	return nil
+}
+
+func (r *CustomDomainReconciler) provisionLoadBalancer(ctx context.Context, d *domainv1beta1.CustomDomain) (bool, error) {
+	providerType, result, err := r.LoadBalancer.Provision(ctx, d)
+	if err != nil {
+		return false, err
+	}
+	if d.Spec.LoadBalancerProvider == nil {
+		d.Spec.LoadBalancerProvider = &providerType
+		if err := r.Update(ctx, d); err != nil {
+			return false, err
+		}
+	}
+
+	dnsRecords := make([]domainv1beta1.CustomDomainDNSRecord, len(result.DNSRecords))
+	for i, r := range result.DNSRecords {
+		dnsRecords[i] = domainv1beta1.CustomDomainDNSRecord{
+			Name:  r.Name,
+			Type:  r.Type,
+			Value: r.Value,
+		}
+	}
+
+	d.Status.LoadBalancer = &domainv1beta1.CustomDomainStatusLoadBalancer{
+		Provider:   providerType,
+		DNSRecords: dnsRecords,
+	}
+
+	return result != nil, nil
+}
+
+func (r *CustomDomainReconciler) releaseLoadBalancer(ctx context.Context, d *domainv1beta1.CustomDomain) (bool, error) {
+	return r.LoadBalancer.Release(ctx, d)
 }

@@ -13,8 +13,7 @@ type Provider interface {
 }
 
 type ProvisionResult struct {
-	ProviderType string
-	DNSRecords   []DNSRecord
+	DNSRecords []DNSRecord
 }
 
 type DNSRecord struct {

@@ -18,6 +18,8 @@ package v1beta1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/skygeario/k8s-controller/api"
 )
 
 // CustomDomainSpec defines the desired state of CustomDomain
@@ -28,6 +30,7 @@ type CustomDomainSpec struct {
 	Registrations []corev1.ObjectReference `json:"registrations,omitempty"`
 }
 
+// CustomDomainDNSRecord is a DNS record associated with the domain
 type CustomDomainDNSRecord struct {
 	// Name is name of DNS record
 	Name string `json:"name"`
@@ -37,22 +40,36 @@ type CustomDomainDNSRecord struct {
 	Value string `json:"value"`
 }
 
-// CustomDomainStatusRegistration defines the status of a registration
-type CustomDomainStatusRegistration struct {
-	// SourceNamespace is originating namespace of the registration
-	SourceNamespace string `json:"sourceNamespace"`
+// CustomDomainConditionType is a valid CustomDomain condition type
+type CustomDomainConditionType string
+
+const (
+	// DomainLoadBalancerProvisioned indicates the required domain resource is provisioned.
+	DomainLoadBalancerProvisioned CustomDomainRegistrationConditionType = "LoadBalancerProvisioned"
+)
+
+// CustomDomainStatusLoadBalancer defines the status of the domain load balancer
+type CustomDomainStatusLoadBalancer struct {
+	// Provider is the provider of this load balancer
+	Provider string `json:"provider"`
 	// DNSRecords are DNS records that should be associated with the domain
 	DNSRecords []CustomDomainDNSRecord `json:"dnsRecords"`
 }
 
 // CustomDomainStatus defines the observed state of CustomDomain
 type CustomDomainStatus struct {
-	// Registrations are statuses of the registrations
-	Registrations []CustomDomainStatusRegistration `json:"registrations,omitempty"`
+	// Current state of custom domain.
+	// +optional
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	Conditions []api.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+	// LoadBalancer is the status of the domain load balancer
+	LoadBalancer *CustomDomainStatusLoadBalancer `json:"loadBalancer,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:subresource:status
 
 // CustomDomain is the Schema for the customdomains API
 type CustomDomain struct {
@@ -64,7 +81,6 @@ type CustomDomain struct {
 }
 
 // +kubebuilder:object:root=true
-// +kubebuilder:subresource:status
 
 // CustomDomainList contains a list of CustomDomain
 type CustomDomainList struct {

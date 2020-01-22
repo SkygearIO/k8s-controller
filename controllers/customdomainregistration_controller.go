@@ -31,6 +31,7 @@ import (
 	domain "github.com/skygeario/k8s-controller/api"
 	domainv1beta1 "github.com/skygeario/k8s-controller/api/v1beta1"
 	"github.com/skygeario/k8s-controller/util/condition"
+	"github.com/skygeario/k8s-controller/util/finalizer"
 	"github.com/skygeario/k8s-controller/util/slice"
 )
 
@@ -56,7 +57,7 @@ func (r *CustomDomainRegistrationReconciler) Reconcile(req ctrl.Request) (ctrl.R
 	var conditions []api.Condition
 	doFinalize := false
 	if reg.DeletionTimestamp == nil {
-		finalizerAdded, err := r.ensureFinalizer(ctx, &reg)
+		finalizerAdded, err := finalizer.Ensure(r, ctx, &reg, domain.DomainFinalizer)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -105,7 +106,7 @@ func (r *CustomDomainRegistrationReconciler) Reconcile(req ctrl.Request) (ctrl.R
 	}
 
 	if doFinalize {
-		err := r.removeFinalizer(ctx, &reg)
+		err := finalizer.Remove(r, ctx, &reg, domain.DomainFinalizer)
 		return ctrl.Result{}, err
 	}
 
@@ -176,19 +177,4 @@ func (r *CustomDomainRegistrationReconciler) unregisterDomain(ctx context.Contex
 
 	registered = slice.ContainsObjectReference(domain.Spec.Registrations, reg)
 	return registered, nil
-}
-
-func (r *CustomDomainRegistrationReconciler) ensureFinalizer(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) (added bool, err error) {
-	if slice.ContainsString(reg.Finalizers, domain.DomainFinalizer) {
-		return false, nil
-	}
-	reg.Finalizers = append(reg.Finalizers, domain.DomainFinalizer)
-	added = true
-	err = r.Update(ctx, reg)
-	return
-}
-
-func (r *CustomDomainRegistrationReconciler) removeFinalizer(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) error {
-	reg.Finalizers = slice.RemoveString(reg.Finalizers, domain.DomainFinalizer)
-	return r.Update(ctx, reg)
 }

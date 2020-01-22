@@ -71,6 +71,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	loadBalancer, err := internal.NewLoadBalancer(config)
+	if err != nil {
+		setupLog.Error(err, "unable create load balancer")
+		os.Exit(1)
+	}
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,
 		MetricsBindAddress: metricsAddr,
@@ -101,9 +107,10 @@ func main() {
 		os.Exit(1)
 	}
 	if err = (&controllers.CustomDomainReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("CustomDomain"),
-		Scheme: mgr.GetScheme(),
+		Client:       mgr.GetClient(),
+		Log:          ctrl.Log.WithName("controllers").WithName("CustomDomain"),
+		Scheme:       mgr.GetScheme(),
+		LoadBalancer: loadBalancer,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CustomDomain")
 		os.Exit(1)

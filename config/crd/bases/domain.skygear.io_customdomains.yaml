@@ -15,6 +15,8 @@ spec:
     plural: customdomains
     singular: customdomain
   scope: Cluster
+  subresources:
+    status: {}
   validation:
     openAPIV3Schema:
       description: CustomDomain is the Schema for the customdomains API
@@ -82,40 +84,69 @@ spec:
         status:
           description: CustomDomainStatus defines the observed state of CustomDomain
           properties:
-            registrations:
-              description: Registrations are statuses of the registrations
+            conditions:
+              description: Current state of custom domain.
               items:
-                description: CustomDomainStatusRegistration defines the status of
-                  a registration
+                description: Condition contains details for the current condition
+                  of this resource
                 properties:
-                  dnsRecords:
-                    description: DNSRecords are DNS records that should be associated
-                      with the domain
-                    items:
-                      properties:
-                        name:
-                          description: Name is name of DNS record
-                          type: string
-                        type:
-                          description: Type is type of DNS record
-                          type: string
-                        value:
-                          description: Value is value of DNS record
-                          type: string
-                      required:
-                      - name
-                      - type
-                      - value
-                      type: object
-                    type: array
-                  sourceNamespace:
-                    description: SourceNamespace is originating namespace of the registration
+                  lastTransitionTime:
+                    description: Last time the condition transitioned from one status
+                      to another.
+                    format: date-time
+                    type: string
+                  message:
+                    description: Human-readable message indicating details about last
+                      transition.
+                    type: string
+                  reason:
+                    description: Unique, one-word, CamelCase reason for the condition's
+                      last transition.
+                    type: string
+                  status:
+                    description: Status is the status of the condition. Can be True,
+                      False, Unknown.
+                    type: string
+                  type:
+                    description: Type is the type of the condition.
                     type: string
                 required:
-                - dnsRecords
-                - sourceNamespace
+                - status
+                - type
                 type: object
               type: array
+            loadBalancer:
+              description: LoadBalancer is the status of the domain load balancer
+              properties:
+                dnsRecords:
+                  description: DNSRecords are DNS records that should be associated
+                    with the domain
+                  items:
+                    description: CustomDomainDNSRecord is a DNS record associated
+                      with the domain
+                    properties:
+                      name:
+                        description: Name is name of DNS record
+                        type: string
+                      type:
+                        description: Type is type of DNS record
+                        type: string
+                      value:
+                        description: Value is value of DNS record
+                        type: string
+                    required:
+                    - name
+                    - type
+                    - value
+                    type: object
+                  type: array
+                provider:
+                  description: Provider is the provider of this load balancer
+                  type: string
+              required:
+              - dnsRecords
+              - provider
+              type: object
           type: object
       type: object
   version: v1beta1

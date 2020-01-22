@@ -29,12 +29,14 @@ func NewLoadBalancer(config Config) (*LoadBalancer, error) {
 	}, nil
 }
 
-func (p *LoadBalancer) Provision(ctx context.Context, domain *domainv1beta1.CustomDomain) (*loadbalancer.ProvisionResult, error) {
+func (p *LoadBalancer) Provision(ctx context.Context, domain *domainv1beta1.CustomDomain) (string, *loadbalancer.ProvisionResult, error) {
 	provider, err := p.selectProvider(domain)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
-	return provider.Provision(ctx, domain)
+
+	result, err := provider.Provision(ctx, domain)
+	return provider.Type(), result, err
 }
 
 func (p *LoadBalancer) Release(ctx context.Context, domain *domainv1beta1.CustomDomain) (bool, error) {

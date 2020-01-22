@@ -63,6 +63,11 @@ func (r *CustomDomain) validate(old *CustomDomain) error {
 			errs = append(errs, field.Invalid(field.NewPath("spec", "registrations").Index(i), r.Name, "only CustomDomainRegistration is supported"))
 		}
 	}
+	if old != nil &&
+		old.Spec.LoadBalancerProvider != nil &&
+		(r.Spec.LoadBalancerProvider == nil || *old.Spec.LoadBalancerProvider != *r.Spec.LoadBalancerProvider) {
+		errs = append(errs, field.Invalid(field.NewPath("spec", "loadBalancerProvider"), r.Name, "load balancer provider cannot be changed"))
+	}
 
 	if len(errs) != 0 {
 		return apierrors.NewInvalid(

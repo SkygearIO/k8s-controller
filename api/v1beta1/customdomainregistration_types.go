@@ -27,7 +27,7 @@ type CustomDomainRegistrationSpec struct {
 	DomainName string `json:"domainName,omitempty"`
 }
 
-// CustomDomainRegistrationConditionType is a valid value for CustomDomainRegistrationCondition.Type
+// CustomDomainRegistrationConditionType is a valid CustomDomainRegistration condition type
 type CustomDomainRegistrationConditionType string
 
 const (
