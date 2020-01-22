@@ -68,6 +68,5 @@ func (p *Provider) Provision(ctx context.Context, domain *domainv1beta1.CustomDo
 
 func (p *Provider) Release(ctx context.Context, domain *domainv1beta1.CustomDomain) (bool, error) {
 	// Nothing to do.
-	fmt.Printf("release %s\n", domain.Name)
 	return true, nil
 }

@@ -75,6 +75,15 @@ func (r *CustomDomainReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error
 			return ctrl.Result{Requeue: true}, nil
 		}
 
+		if len(d.Spec.Registrations) == 0 {
+			// Release custom domain when no registrations
+			err = r.Delete(ctx, &d)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{Requeue: true}, nil
+		}
+
 		provisioned, err := r.provisionLoadBalancer(ctx, &d)
 		if err != nil {
 			conditions = append(conditions, api.Condition{
