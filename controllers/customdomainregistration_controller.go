@@ -64,7 +64,8 @@ func (r *CustomDomainRegistrationReconciler) Reconcile(req ctrl.Request) (ctrl.R
 			return ctrl.Result{Requeue: true}, nil
 		}
 
-		if err := r.registerDomain(ctx, &reg); err != nil {
+		registered, err := r.registerDomain(ctx, &reg)
+		if err != nil {
 			conditions = append(conditions, api.Condition{
 				Type:    string(domainv1beta1.RegistrationAccepted),
 				Status:  metav1.ConditionUnknown,
@@ -73,14 +74,15 @@ func (r *CustomDomainRegistrationReconciler) Reconcile(req ctrl.Request) (ctrl.R
 		} else {
 			conditions = append(conditions, api.Condition{
 				Type:   string(domainv1beta1.RegistrationAccepted),
-				Status: metav1.ConditionTrue,
+				Status: condition.ToStatus(registered),
 			})
 		}
 
 	} else {
 		doFinalize = true
 
-		if err := r.unregisterDomain(ctx, &reg); err != nil {
+		registered, err := r.unregisterDomain(ctx, &reg)
+		if err != nil {
 			doFinalize = false
 			conditions = append(conditions, api.Condition{
 				Type:    string(domainv1beta1.RegistrationAccepted),
@@ -88,9 +90,10 @@ func (r *CustomDomainRegistrationReconciler) Reconcile(req ctrl.Request) (ctrl.R
 				Message: err.Error(),
 			})
 		} else {
+			doFinalize = doFinalize && !registered
 			conditions = append(conditions, api.Condition{
 				Type:   string(domainv1beta1.RegistrationAccepted),
-				Status: metav1.ConditionFalse,
+				Status: condition.ToStatus(registered),
 			})
 		}
 	}
@@ -115,64 +118,64 @@ func (r *CustomDomainRegistrationReconciler) SetupWithManager(mgr ctrl.Manager) 
 		Complete(r)
 }
 
-func (r *CustomDomainRegistrationReconciler) registerDomain(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) error {
+func (r *CustomDomainRegistrationReconciler) registerDomain(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) (registered bool, err error) {
 	var domain domainv1beta1.CustomDomain
-	err := r.Get(ctx, types.NamespacedName{Name: reg.Name}, &domain)
+	err = r.Get(ctx, types.NamespacedName{Name: reg.Name}, &domain)
 	if err != nil && !apierrors.IsNotFound(err) {
-		return err
+		return false, err
 	}
 
+	regRef := corev1.ObjectReference{
+		APIVersion: reg.APIVersion,
+		Kind:       reg.Kind,
+		Name:       reg.Name,
+		Namespace:  reg.Namespace,
+		UID:        reg.UID,
+	}
 	if apierrors.IsNotFound(err) {
 		domain = domainv1beta1.CustomDomain{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: reg.Name,
 			},
 			Spec: domainv1beta1.CustomDomainSpec{
-				Registrations: []corev1.ObjectReference{{
-					APIVersion: reg.APIVersion,
-					Kind:       reg.Kind,
-					Name:       reg.Name,
-					Namespace:  reg.Namespace,
-					UID:        reg.UID,
-				}},
+				Registrations: []corev1.ObjectReference{regRef},
 			},
 		}
 		if err := r.Create(ctx, &domain); err != nil {
-			return err
+			return false, err
 		}
 	} else {
 		if !slice.ContainsObjectReference(domain.Spec.Registrations, reg) {
-			domain.Spec.Registrations = append(domain.Spec.Registrations, corev1.ObjectReference{
-				APIVersion: reg.APIVersion,
-				Kind:       reg.Kind,
-				Name:       reg.Name,
-				Namespace:  reg.Namespace,
-				UID:        reg.UID,
-			})
+			domain.Spec.Registrations = append(domain.Spec.Registrations, regRef)
 			if err := r.Update(ctx, &domain); err != nil {
-				return err
+				return false, err
 			}
 		}
 	}
-	return nil
+
+	registered = slice.ContainsObjectReference(domain.Spec.Registrations, reg)
+	return registered, nil
 }
 
-func (r *CustomDomainRegistrationReconciler) unregisterDomain(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) error {
+func (r *CustomDomainRegistrationReconciler) unregisterDomain(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) (registered bool, err error) {
 	var domain domainv1beta1.CustomDomain
-	err := r.Get(ctx, types.NamespacedName{Name: reg.Name}, &domain)
+	err = r.Get(ctx, types.NamespacedName{Name: reg.Name}, &domain)
+	if apierrors.IsNotFound(err) {
+		return false, nil
+	}
 	if err != nil {
-		return client.IgnoreNotFound(err)
+		return false, err
 	}
 
-	if !slice.ContainsObjectReference(domain.Spec.Registrations, reg) {
-		return nil
-	}
-	domain.Spec.Registrations = slice.RemoveObjectReference(domain.Spec.Registrations, reg)
-	if err := r.Update(ctx, &domain); err != nil {
-		return err
+	if slice.ContainsObjectReference(domain.Spec.Registrations, reg) {
+		domain.Spec.Registrations = slice.RemoveObjectReference(domain.Spec.Registrations, reg)
+		if err := r.Update(ctx, &domain); err != nil {
+			return false, err
+		}
 	}
 
-	return nil
+	registered = slice.ContainsObjectReference(domain.Spec.Registrations, reg)
+	return registered, nil
 }
 
 func (r *CustomDomainRegistrationReconciler) ensureFinalizer(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) (added bool, err error) {
