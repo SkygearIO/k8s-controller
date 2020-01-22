@@ -147,8 +147,9 @@ func (r *CustomDomainRegistrationReconciler) registerDomain(ctx context.Context,
 		}
 	} else {
 		if !slice.ContainsObjectReference(domain.Spec.Registrations, reg) {
+			patch := client.MergeFrom(domain.DeepCopy())
 			domain.Spec.Registrations = append(domain.Spec.Registrations, regRef)
-			if err := r.Update(ctx, &domain); err != nil {
+			if err := r.Patch(ctx, &domain, patch); err != nil {
 				return false, err
 			}
 		}
@@ -169,8 +170,9 @@ func (r *CustomDomainRegistrationReconciler) unregisterDomain(ctx context.Contex
 	}
 
 	if slice.ContainsObjectReference(domain.Spec.Registrations, reg) {
+		patch := client.MergeFrom(domain.DeepCopy())
 		domain.Spec.Registrations = slice.RemoveObjectReference(domain.Spec.Registrations, reg)
-		if err := r.Update(ctx, &domain); err != nil {
+		if err := r.Patch(ctx, &domain, patch); err != nil {
 			return false, err
 		}
 	}

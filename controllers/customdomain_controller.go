@@ -152,17 +152,19 @@ func (r *CustomDomainReconciler) validateRegistrations(ctx context.Context, d *d
 		n++
 
 		if !slice.ContainsOwnerReference(reg.OwnerReferences, d) {
+			patch := client.MergeFrom(reg.DeepCopy())
 			if err := ctrl.SetControllerReference(d, &reg, r.Scheme); err != nil {
 				return err
 			}
-			if err := r.Update(ctx, &reg); err != nil {
+			if err := r.Patch(ctx, &reg, patch); err != nil {
 				return err
 			}
 		}
 	}
 	if n != len(d.Spec.Registrations) {
+		patch := client.MergeFrom(d.DeepCopy())
 		d.Spec.Registrations = d.Spec.Registrations[:n]
-		if err := r.Update(ctx, d); err != nil {
+		if err := r.Patch(ctx, d, patch); err != nil {
 			return err
 		}
 	}
@@ -175,8 +177,9 @@ func (r *CustomDomainReconciler) provisionLoadBalancer(ctx context.Context, d *d
 		return false, err
 	}
 	if d.Spec.LoadBalancerProvider == nil {
+		patch := client.MergeFrom(d.DeepCopy())
 		d.Spec.LoadBalancerProvider = &providerType
-		if err := r.Update(ctx, d); err != nil {
+		if err := r.Patch(ctx, d, patch); err != nil {
 			return false, err
 		}
 	}
