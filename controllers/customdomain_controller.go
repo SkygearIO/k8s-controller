@@ -140,6 +140,7 @@ func (r *CustomDomainReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error
 func (r *CustomDomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&domainv1beta1.CustomDomain{}).
+		Owns(&domainv1beta1.CustomDomainRegistration{}).
 		Complete(r)
 }
 
@@ -220,5 +221,60 @@ func (r *CustomDomainReconciler) processRegistrations(ctx context.Context, d *do
 			return err
 		}
 	}
+
+	if d.Spec.OwnerApp == nil {
+		appToAccept := ""
+		for _, ref := range d.Spec.Registrations {
+			var reg domainv1beta1.CustomDomainRegistration
+			if err := r.Get(ctx, types.NamespacedName{Namespace: ref.Namespace, Name: ref.Name}, &reg); err != nil {
+				return err
+			}
+
+			cond := condition.Lookup(reg.Status.Conditions, string(domainv1beta1.RegistrationVerified))
+			if cond != nil && cond.Status == metav1.ConditionTrue {
+				appToAccept = reg.Namespace
+				break
+			}
+		}
+
+		if appToAccept != "" {
+			patch := client.MergeFrom(d.DeepCopy())
+			d.Spec.OwnerApp = &appToAccept
+			if err := r.Patch(ctx, d, patch); err != nil {
+				return err
+			}
+		}
+	} else {
+		ownerOk := false
+		for _, ref := range d.Spec.Registrations {
+			if ref.Namespace != *d.Spec.OwnerApp {
+				continue
+			}
+			var reg domainv1beta1.CustomDomainRegistration
+			if err := r.Get(ctx, types.NamespacedName{Namespace: ref.Namespace, Name: ref.Name}, &reg); err != nil {
+				if !apierrors.IsNotFound(err) {
+					return err
+				}
+				break
+			}
+
+			cond := condition.Lookup(reg.Status.Conditions, string(domainv1beta1.RegistrationVerified))
+			if cond == nil || cond.Status != metav1.ConditionTrue {
+				break
+			}
+
+			ownerOk = true
+			break
+		}
+
+		if !ownerOk {
+			patch := client.MergeFrom(d.DeepCopy())
+			d.Spec.OwnerApp = nil
+			if err := r.Patch(ctx, d, patch); err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }

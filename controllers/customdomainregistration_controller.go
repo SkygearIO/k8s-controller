@@ -101,6 +101,20 @@ func (r *CustomDomainRegistrationReconciler) Reconcile(req ctrl.Request) (ctrl.R
 			requeueAfter = requeueTime.Sub(time.Now())
 		}
 
+		accepted, err := r.checkAcceptance(ctx, &reg)
+		if err != nil {
+			conditions = append(conditions, api.Condition{
+				Type:    string(domainv1beta1.RegistrationAccepted),
+				Status:  metav1.ConditionUnknown,
+				Message: err.Error(),
+			})
+		} else {
+			conditions = append(conditions, api.Condition{
+				Type:   string(domainv1beta1.RegistrationAccepted),
+				Status: condition.ToStatus(accepted),
+			})
+		}
+
 	} else {
 		doFinalize = true
 
@@ -269,4 +283,15 @@ func (r *CustomDomainRegistrationReconciler) verifyDomainIfNeeded(ctx context.Co
 
 	reg.Status.LastVerificationTime = &now
 	return nil, err == nil, err
+}
+
+func (r *CustomDomainRegistrationReconciler) checkAcceptance(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) (accepted bool, err error) {
+	var domain domainv1beta1.CustomDomain
+	err = r.Get(ctx, types.NamespacedName{Name: reg.Name}, &domain)
+	if err != nil {
+		return false, err
+	}
+
+	accepted = domain.Spec.OwnerApp != nil && *domain.Spec.OwnerApp == reg.Namespace
+	return accepted, nil
 }

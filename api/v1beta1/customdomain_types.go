@@ -30,6 +30,8 @@ type CustomDomainSpec struct {
 	VerificationKey *string `json:"verificationKey,omitempty"`
 	// Registrations are registrations from apps.
 	Registrations []corev1.ObjectReference `json:"registrations,omitempty"`
+	// OwnerApp is the app which the registration is accepted
+	OwnerApp *string `json:"ownerApp,omitempty"`
 }
 
 // CustomDomainDNSRecord is a DNS record associated with the domain

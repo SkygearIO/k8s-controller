@@ -40,6 +40,9 @@ spec:
               description: LoadBalancerProvider is the load balancer provider for
                 this domain.
               type: string
+            ownerApp:
+              description: OwnerApp is the app which the registration is accepted
+              type: string
             registrations:
               description: Registrations are registrations from apps.
               items:
