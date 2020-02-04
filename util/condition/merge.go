@@ -18,6 +18,10 @@ func MergeFrom(newConds, oldConds []api.Condition) {
 				cond.LastTransitionTime = metav1.Now()
 			} else {
 				cond.LastTransitionTime = old.LastTransitionTime
+				if cond.Message == "" {
+					cond.Message = old.Message
+					cond.Reason = old.Reason
+				}
 			}
 			updated = true
 			break
