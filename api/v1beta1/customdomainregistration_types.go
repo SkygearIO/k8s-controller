@@ -25,6 +25,9 @@ import (
 type CustomDomainRegistrationSpec struct {
 	// DomainName is the custom domain name registered with the app.
 	DomainName string `json:"domainName,omitempty"`
+	// VerifyAt is the time that next verification should be performed
+	// +optional
+	VerifyAt *metav1.Time `json:"verifyAt"`
 }
 
 // CustomDomainRegistrationConditionType is a valid CustomDomainRegistration condition type
@@ -46,6 +49,9 @@ type CustomDomainRegistrationStatus struct {
 	Conditions []api.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 	// DNSRecords are DNS records that should be associated with the domain
 	DNSRecords []CustomDomainDNSRecord `json:"dnsRecords"`
+	// LastVerificationTime is the time that last verification is performed
+	// +optional
+	LastVerificationTime *metav1.Time `json:"lastVerificationTime,omitempty"`
 }
 
 // +kubebuilder:object:root=true

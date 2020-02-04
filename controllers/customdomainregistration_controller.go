@@ -17,6 +17,7 @@ package controllers
 
 import (
 	"context"
+	"time"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -38,12 +39,20 @@ import (
 	"github.com/skygeario/k8s-controller/verification"
 )
 
+const (
+	VerificationCooldownSeconds int = 60
+	VerificationTimeoutSeconds  int = 5
+)
+
 // CustomDomainRegistrationReconciler reconciles a CustomDomainRegistration object
 type CustomDomainRegistrationReconciler struct {
 	client.Client
-	Log                        logr.Logger
-	Scheme                     *runtime.Scheme
+	Log    logr.Logger
+	Scheme *runtime.Scheme
+
+	Now                        func() metav1.Time
 	VerificationTokenGenerator func(key, nonce string) string
+	DomainVerifier             func(ctx context.Context, domain, token string) error
 }
 
 // +kubebuilder:rbac:groups=domain.skygear.io,resources=customdomainregistrations,verbs=get;list;watch;create;update;patch;delete
@@ -60,6 +69,7 @@ func (r *CustomDomainRegistrationReconciler) Reconcile(req ctrl.Request) (ctrl.R
 
 	var conditions []api.Condition
 	doFinalize := false
+	var requeueAfter time.Duration
 	if reg.DeletionTimestamp == nil {
 		finalizerAdded, err := finalizer.Ensure(r, ctx, &reg, domain.DomainFinalizer)
 		if err != nil {
@@ -74,11 +84,11 @@ func (r *CustomDomainRegistrationReconciler) Reconcile(req ctrl.Request) (ctrl.R
 			return ctrl.Result{}, err
 		}
 
-		verified, err := r.verifyDomainIfNeeded(ctx, &reg)
+		requeueTime, verified, err := r.verifyDomainIfNeeded(ctx, &reg)
 		if err != nil {
 			conditions = append(conditions, api.Condition{
 				Type:    string(domainv1beta1.RegistrationVerified),
-				Status:  metav1.ConditionUnknown,
+				Status:  condition.ToStatus(verified),
 				Message: err.Error(),
 			})
 		} else {
@@ -86,6 +96,9 @@ func (r *CustomDomainRegistrationReconciler) Reconcile(req ctrl.Request) (ctrl.R
 				Type:   string(domainv1beta1.RegistrationVerified),
 				Status: condition.ToStatus(verified),
 			})
+		}
+		if requeueTime != nil {
+			requeueAfter = requeueTime.Sub(time.Now())
 		}
 
 	} else {
@@ -119,7 +132,7 @@ func (r *CustomDomainRegistrationReconciler) Reconcile(req ctrl.Request) (ctrl.R
 		return ctrl.Result{}, err
 	}
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{RequeueAfter: requeueAfter}, nil
 }
 
 func (r *CustomDomainRegistrationReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -202,21 +215,21 @@ func (r *CustomDomainRegistrationReconciler) unregisterDomain(ctx context.Contex
 	return registered, nil
 }
 
-func (r *CustomDomainRegistrationReconciler) verifyDomainIfNeeded(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) (verified bool, err error) {
+func (r *CustomDomainRegistrationReconciler) verifyDomainIfNeeded(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) (requeueTime *time.Time, verified bool, err error) {
 	var domain domainv1beta1.CustomDomain
 	err = r.Get(ctx, types.NamespacedName{Name: reg.Name}, &domain)
 	if err != nil {
-		return false, err
+		return nil, false, err
 	}
 
 	if domain.Spec.VerificationKey == nil {
-		return false, nil
+		return nil, false, nil
 	}
 
 	token := r.VerificationTokenGenerator(*domain.Spec.VerificationKey, string(reg.UID))
 	dnsRecordName, err := verification.MakeDNSRecordName(domain.Name)
 	if err != nil {
-		return false, err
+		return nil, false, err
 	}
 	records := append(
 		domain.Status.LoadBalancer.DNSRecords,
@@ -225,21 +238,35 @@ func (r *CustomDomainRegistrationReconciler) verifyDomainIfNeeded(ctx context.Co
 	reg.Status.DNSRecords = records
 
 	currentVerified := false
-	var lastVerifyTime metav1.Time
 	for _, cond := range reg.Status.Conditions {
 		if cond.Type == string(domainv1beta1.RegistrationVerified) {
 			currentVerified = cond.Status == metav1.ConditionTrue
-			lastVerifyTime = cond.LastTransitionTime
 			break
 		}
 	}
 
-	if currentVerified {
-		// TODO(domain): re-verify periodically
-		return true, nil
-	} else {
-		// TODO(domain): verify domain on request
-		_ = lastVerifyTime
-		return false, nil
+	now := r.Now()
+	if reg.Spec.VerifyAt == nil ||
+		(reg.Status.LastVerificationTime != nil && reg.Status.LastVerificationTime.After(reg.Spec.VerifyAt.Time)) {
+		return nil, currentVerified, nil
 	}
+	verifyTime := reg.Spec.VerifyAt.Time
+	if reg.Status.LastVerificationTime != nil &&
+		verifyTime.Before(reg.Status.LastVerificationTime.Add(time.Duration(VerificationCooldownSeconds)*time.Second)) {
+		verifyTime = reg.Status.LastVerificationTime.Add(time.Duration(VerificationCooldownSeconds) * time.Second)
+	}
+	if !now.After(verifyTime) {
+		return &verifyTime, currentVerified, nil
+	}
+
+	err = func() error {
+		verifyCtx, cancel := context.WithTimeout(ctx, time.Duration(VerificationTimeoutSeconds)*time.Second)
+		defer cancel()
+		return r.DomainVerifier(verifyCtx, domain.Name, token)
+	}()
+
+	// TODO(domain): re-verify periodically
+
+	reg.Status.LastVerificationTime = &now
+	return nil, err == nil, err
 }

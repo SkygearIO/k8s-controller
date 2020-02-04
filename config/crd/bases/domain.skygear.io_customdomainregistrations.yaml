@@ -41,6 +41,10 @@ spec:
               description: DomainName is the custom domain name registered with the
                 app.
               type: string
+            verifyAt:
+              description: VerifyAt is the time that next verification should be performed
+              format: date-time
+              type: string
           type: object
         status:
           description: CustomDomainRegistrationStatus defines the observed state of
@@ -99,6 +103,11 @@ spec:
                 - value
                 type: object
               type: array
+            lastVerificationTime:
+              description: LastVerificationTime is the time that last verification
+                is performed
+              format: date-time
+              type: string
           required:
           - dnsRecords
           type: object

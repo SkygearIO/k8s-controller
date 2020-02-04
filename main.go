@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 	"os"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -104,7 +105,9 @@ func main() {
 		Client:                     mgr.GetClient(),
 		Log:                        ctrl.Log.WithName("controllers").WithName("CustomDomainRegistration"),
 		Scheme:                     mgr.GetScheme(),
+		Now:                        metav1.Now,
 		VerificationTokenGenerator: verification.GenerateDomainToken,
+		DomainVerifier:             verification.VerifyDomain,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CustomDomainRegistration")
 		os.Exit(1)
