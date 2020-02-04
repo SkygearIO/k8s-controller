@@ -80,6 +80,9 @@ spec:
                     type: string
                 type: object
               type: array
+            verificationKey:
+              description: VerificationKey is the domain verification token key.
+              type: string
           type: object
         status:
           description: CustomDomainStatus defines the observed state of CustomDomain

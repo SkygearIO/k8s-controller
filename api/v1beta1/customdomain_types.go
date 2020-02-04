@@ -26,6 +26,8 @@ import (
 type CustomDomainSpec struct {
 	// LoadBalancerProvider is the load balancer provider for this domain.
 	LoadBalancerProvider *string `json:"loadBalancerProvider,omitempty"`
+	// VerificationKey is the domain verification token key.
+	VerificationKey *string `json:"verificationKey,omitempty"`
 	// Registrations are registrations from apps.
 	Registrations []corev1.ObjectReference `json:"registrations,omitempty"`
 }

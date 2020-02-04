@@ -21,15 +21,17 @@ import (
 	"io/ioutil"
 	"os"
 
-	domainv1beta1 "github.com/skygeario/k8s-controller/api/v1beta1"
-	"github.com/skygeario/k8s-controller/controllers"
-	"github.com/skygeario/k8s-controller/internal"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	// +kubebuilder:scaffold:imports
+
+	domainv1beta1 "github.com/skygeario/k8s-controller/api/v1beta1"
+	"github.com/skygeario/k8s-controller/controllers"
+	"github.com/skygeario/k8s-controller/internal"
+	"github.com/skygeario/k8s-controller/verification"
 )
 
 var (
@@ -99,18 +101,20 @@ func main() {
 		}
 	}
 	if err = (&controllers.CustomDomainRegistrationReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("CustomDomainRegistration"),
-		Scheme: mgr.GetScheme(),
+		Client:                     mgr.GetClient(),
+		Log:                        ctrl.Log.WithName("controllers").WithName("CustomDomainRegistration"),
+		Scheme:                     mgr.GetScheme(),
+		VerificationTokenGenerator: verification.GenerateDomainToken,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CustomDomainRegistration")
 		os.Exit(1)
 	}
 	if err = (&controllers.CustomDomainReconciler{
-		Client:       mgr.GetClient(),
-		Log:          ctrl.Log.WithName("controllers").WithName("CustomDomain"),
-		Scheme:       mgr.GetScheme(),
-		LoadBalancer: loadBalancer,
+		Client:                   mgr.GetClient(),
+		Log:                      ctrl.Log.WithName("controllers").WithName("CustomDomain"),
+		Scheme:                   mgr.GetScheme(),
+		LoadBalancer:             loadBalancer,
+		VerificationKeyGenerator: verification.GenerateDomainKey,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CustomDomain")
 		os.Exit(1)

@@ -77,6 +77,30 @@ spec:
                 - type
                 type: object
               type: array
+            dnsRecords:
+              description: DNSRecords are DNS records that should be associated with
+                the domain
+              items:
+                description: CustomDomainDNSRecord is a DNS record associated with
+                  the domain
+                properties:
+                  name:
+                    description: Name is name of DNS record
+                    type: string
+                  type:
+                    description: Type is type of DNS record
+                    type: string
+                  value:
+                    description: Value is value of DNS record
+                    type: string
+                required:
+                - name
+                - type
+                - value
+                type: object
+              type: array
+          required:
+          - dnsRecords
           type: object
       type: object
   version: v1beta1

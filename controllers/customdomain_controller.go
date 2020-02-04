@@ -23,6 +23,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -43,9 +44,10 @@ type LoadBalancer interface {
 // CustomDomainReconciler reconciles a CustomDomain object
 type CustomDomainReconciler struct {
 	client.Client
-	Log          logr.Logger
-	Scheme       *runtime.Scheme
-	LoadBalancer LoadBalancer
+	Log                      logr.Logger
+	Scheme                   *runtime.Scheme
+	LoadBalancer             LoadBalancer
+	VerificationKeyGenerator func() string
 }
 
 // +kubebuilder:rbac:groups=domain.skygear.io,resources=customdomains,verbs=get;list;watch;create;update;patch;delete
@@ -96,6 +98,11 @@ func (r *CustomDomainReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error
 				Type:   string(domainv1beta1.DomainLoadBalancerProvisioned),
 				Status: condition.ToStatus(provisioned),
 			})
+		}
+
+		err = r.processRegistrations(ctx, &d)
+		if err != nil {
+			return ctrl.Result{}, err
 		}
 
 	} else {
@@ -203,4 +210,15 @@ func (r *CustomDomainReconciler) provisionLoadBalancer(ctx context.Context, d *d
 
 func (r *CustomDomainReconciler) releaseLoadBalancer(ctx context.Context, d *domainv1beta1.CustomDomain) (bool, error) {
 	return r.LoadBalancer.Release(ctx, d)
+}
+
+func (r *CustomDomainReconciler) processRegistrations(ctx context.Context, d *domainv1beta1.CustomDomain) error {
+	if d.Spec.VerificationKey == nil {
+		patch := client.MergeFrom(d.DeepCopy())
+		d.Spec.VerificationKey = pointer.StringPtr(r.VerificationKeyGenerator())
+		if err := r.Patch(ctx, d, patch); err != nil {
+			return err
+		}
+	}
+	return nil
 }

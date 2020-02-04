@@ -31,6 +31,8 @@ type CustomDomainRegistrationSpec struct {
 type CustomDomainRegistrationConditionType string
 
 const (
+	// Verified indicates the registration is verified.
+	RegistrationVerified CustomDomainRegistrationConditionType = "Verified"
 	// Accepted indicates the registration is accepted.
 	RegistrationAccepted CustomDomainRegistrationConditionType = "Accepted"
 )
@@ -42,6 +44,8 @@ type CustomDomainRegistrationStatus struct {
 	// +patchMergeKey=type
 	// +patchStrategy=merge
 	Conditions []api.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+	// DNSRecords are DNS records that should be associated with the domain
+	DNSRecords []CustomDomainDNSRecord `json:"dnsRecords"`
 }
 
 // +kubebuilder:object:root=true
