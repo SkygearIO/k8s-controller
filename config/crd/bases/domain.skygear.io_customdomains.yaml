@@ -147,7 +147,6 @@ spec:
                   description: Provider is the provider of this load balancer
                   type: string
               required:
-              - dnsRecords
               - provider
               type: object
           type: object

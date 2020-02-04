@@ -222,7 +222,7 @@ func (r *CustomDomainRegistrationReconciler) verifyDomainIfNeeded(ctx context.Co
 		return nil, false, err
 	}
 
-	if domain.Spec.VerificationKey == nil {
+	if domain.Spec.VerificationKey == nil || domain.Status.LoadBalancer == nil {
 		return nil, false, nil
 	}
 

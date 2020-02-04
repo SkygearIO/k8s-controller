@@ -27,7 +27,7 @@ type CustomDomainRegistrationSpec struct {
 	DomainName string `json:"domainName,omitempty"`
 	// VerifyAt is the time that next verification should be performed
 	// +optional
-	VerifyAt *metav1.Time `json:"verifyAt"`
+	VerifyAt *metav1.Time `json:"verifyAt,omitempty"`
 }
 
 // CustomDomainRegistrationConditionType is a valid CustomDomainRegistration condition type
@@ -48,7 +48,8 @@ type CustomDomainRegistrationStatus struct {
 	// +patchStrategy=merge
 	Conditions []api.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 	// DNSRecords are DNS records that should be associated with the domain
-	DNSRecords []CustomDomainDNSRecord `json:"dnsRecords"`
+	// +optional
+	DNSRecords []CustomDomainDNSRecord `json:"dnsRecords,omitempty"`
 	// LastVerificationTime is the time that last verification is performed
 	// +optional
 	LastVerificationTime *metav1.Time `json:"lastVerificationTime,omitempty"`

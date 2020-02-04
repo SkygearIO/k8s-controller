@@ -108,8 +108,6 @@ spec:
                 is performed
               format: date-time
               type: string
-          required:
-          - dnsRecords
           type: object
       type: object
   version: v1beta1

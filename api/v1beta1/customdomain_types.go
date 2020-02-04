@@ -55,7 +55,8 @@ type CustomDomainStatusLoadBalancer struct {
 	// Provider is the provider of this load balancer
 	Provider string `json:"provider"`
 	// DNSRecords are DNS records that should be associated with the domain
-	DNSRecords []CustomDomainDNSRecord `json:"dnsRecords"`
+	// +optional
+	DNSRecords []CustomDomainDNSRecord `json:"dnsRecords,omitempty"`
 }
 
 // CustomDomainStatus defines the observed state of CustomDomain
