@@ -17,6 +17,7 @@ package controllers
 
 import (
 	"context"
+	"time"
 
 	"github.com/go-logr/logr"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -68,6 +69,8 @@ func (r *CustomDomainReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error
 
 	var conditions []api.Condition
 	doFinalize := false
+	var requeueAfter time.Duration
+
 	if d.DeletionTimestamp == nil {
 		finalizerAdded, err := finalizer.Ensure(r, ctx, &d, domain.DomainFinalizer)
 		if err != nil {
@@ -98,6 +101,9 @@ func (r *CustomDomainReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error
 				Type:   string(domainv1beta1.DomainLoadBalancerProvisioned),
 				Status: condition.ToStatus(provisioned),
 			})
+			if !provisioned {
+				requeueAfter = 5 * time.Second
+			}
 		}
 
 		err = r.processRegistrations(ctx, &d)
@@ -134,7 +140,7 @@ func (r *CustomDomainReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error
 		return ctrl.Result{}, err
 	}
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{RequeueAfter: requeueAfter}, nil
 }
 
 func (r *CustomDomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -192,19 +198,23 @@ func (r *CustomDomainReconciler) provisionLoadBalancer(ctx context.Context, d *d
 		}
 	}
 
-	dnsRecords := make([]domainv1beta1.CustomDomainDNSRecord, len(result.DNSRecords))
-	for i, r := range result.DNSRecords {
-		dnsRecords[i] = domainv1beta1.CustomDomainDNSRecord{
-			Name:  r.Name,
-			Type:  r.Type,
-			Value: r.Value,
-		}
+	loadBalancer := &domainv1beta1.CustomDomainStatusLoadBalancer{
+		Provider: providerType,
 	}
 
-	d.Status.LoadBalancer = &domainv1beta1.CustomDomainStatusLoadBalancer{
-		Provider:   providerType,
-		DNSRecords: dnsRecords,
+	if result != nil {
+		dnsRecords := make([]domainv1beta1.CustomDomainDNSRecord, len(result.DNSRecords))
+		for i, r := range result.DNSRecords {
+			dnsRecords[i] = domainv1beta1.CustomDomainDNSRecord{
+				Name:  r.Name,
+				Type:  r.Type,
+				Value: r.Value,
+			}
+		}
+		loadBalancer.DNSRecords = dnsRecords
 	}
+
+	d.Status.LoadBalancer = loadBalancer
 
 	return result != nil, nil
 }
