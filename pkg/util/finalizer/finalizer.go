@@ -7,7 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/skygeario/k8s-controller/util/slice"
+	"github.com/skygeario/k8s-controller/pkg/util/slice"
 )
 
 func Ensure(client client.Client, ctx context.Context, obj runtime.Object, finalizer string) (added bool, err error) {

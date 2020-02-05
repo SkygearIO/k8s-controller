@@ -8,7 +8,7 @@ import (
 	"golang.org/x/net/publicsuffix"
 
 	domainv1beta1 "github.com/skygeario/k8s-controller/api/v1beta1"
-	"github.com/skygeario/k8s-controller/loadbalancer"
+	"github.com/skygeario/k8s-controller/pkg/domain/loadbalancer"
 )
 
 type Provider struct {

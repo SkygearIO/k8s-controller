@@ -32,7 +32,7 @@ import (
 	domainv1beta1 "github.com/skygeario/k8s-controller/api/v1beta1"
 	"github.com/skygeario/k8s-controller/controllers"
 	"github.com/skygeario/k8s-controller/internal"
-	"github.com/skygeario/k8s-controller/verification"
+	"github.com/skygeario/k8s-controller/pkg/domain/verification"
 )
 
 var (

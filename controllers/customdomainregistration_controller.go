@@ -33,10 +33,10 @@ import (
 	"github.com/skygeario/k8s-controller/api"
 	domain "github.com/skygeario/k8s-controller/api"
 	domainv1beta1 "github.com/skygeario/k8s-controller/api/v1beta1"
-	"github.com/skygeario/k8s-controller/util/condition"
-	"github.com/skygeario/k8s-controller/util/finalizer"
-	"github.com/skygeario/k8s-controller/util/slice"
-	"github.com/skygeario/k8s-controller/verification"
+	"github.com/skygeario/k8s-controller/pkg/util/condition"
+	"github.com/skygeario/k8s-controller/pkg/util/finalizer"
+	"github.com/skygeario/k8s-controller/pkg/util/slice"
+	"github.com/skygeario/k8s-controller/pkg/domain/verification"
 )
 
 const (

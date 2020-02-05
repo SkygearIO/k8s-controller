@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	domainv1beta1 "github.com/skygeario/k8s-controller/api/v1beta1"
-	"github.com/skygeario/k8s-controller/loadbalancer"
-	"github.com/skygeario/k8s-controller/loadbalancer/staticip"
+	"github.com/skygeario/k8s-controller/pkg/domain/loadbalancer"
+	"github.com/skygeario/k8s-controller/pkg/domain/loadbalancer/staticip"
 	"golang.org/x/net/publicsuffix"
 )
 
