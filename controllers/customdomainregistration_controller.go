@@ -33,16 +33,23 @@ import (
 	"github.com/skygeario/k8s-controller/api"
 	domain "github.com/skygeario/k8s-controller/api"
 	domainv1beta1 "github.com/skygeario/k8s-controller/api/v1beta1"
+	"github.com/skygeario/k8s-controller/pkg/domain/tls"
+	"github.com/skygeario/k8s-controller/pkg/domain/verification"
 	"github.com/skygeario/k8s-controller/pkg/util/condition"
+	"github.com/skygeario/k8s-controller/pkg/util/deadline"
 	"github.com/skygeario/k8s-controller/pkg/util/finalizer"
 	"github.com/skygeario/k8s-controller/pkg/util/slice"
-	"github.com/skygeario/k8s-controller/pkg/domain/verification"
 )
 
 const (
 	VerificationCooldownSeconds int = 60
 	VerificationTimeoutSeconds  int = 5
 )
+
+type TLSProvider interface {
+	Provision(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) (result *tls.ProvisionResult, err error)
+	Release(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) (ok bool, err error)
+}
 
 // CustomDomainRegistrationReconciler reconciles a CustomDomainRegistration object
 type CustomDomainRegistrationReconciler struct {
@@ -53,6 +60,7 @@ type CustomDomainRegistrationReconciler struct {
 	Now                        func() metav1.Time
 	VerificationTokenGenerator func(key, nonce string) string
 	DomainVerifier             func(ctx context.Context, domain, token string) error
+	TLSProvider                TLSProvider
 }
 
 // +kubebuilder:rbac:groups=domain.skygear.io,resources=customdomainregistrations,verbs=get;list;watch;create;update;patch;delete
@@ -69,7 +77,7 @@ func (r *CustomDomainRegistrationReconciler) Reconcile(req ctrl.Request) (ctrl.R
 
 	var conditions []api.Condition
 	doFinalize := false
-	var requeueAfter time.Duration
+	var requeueDeadline deadline.Deadline
 	if reg.DeletionTimestamp == nil {
 		finalizerAdded, err := finalizer.Ensure(r, ctx, &reg, domain.DomainFinalizer)
 		if err != nil {
@@ -98,7 +106,7 @@ func (r *CustomDomainRegistrationReconciler) Reconcile(req ctrl.Request) (ctrl.R
 			})
 		}
 		if requeueTime != nil {
-			requeueAfter = requeueTime.Sub(time.Now())
+			requeueDeadline.Set(*requeueTime)
 		}
 
 		accepted, err := r.checkAcceptance(ctx, &reg)
@@ -114,6 +122,46 @@ func (r *CustomDomainRegistrationReconciler) Reconcile(req ctrl.Request) (ctrl.R
 				Status: condition.ToStatus(accepted),
 			})
 		}
+
+		var certSecretName *string
+		if accepted {
+			tlsResult, err := r.TLSProvider.Provision(ctx, &reg)
+			if err != nil {
+				conditions = append(conditions, api.Condition{
+					Type:    string(domainv1beta1.RegistrationCertReady),
+					Status:  metav1.ConditionUnknown,
+					Message: err.Error(),
+				})
+			} else {
+				conditions = append(conditions, api.Condition{
+					Type:   string(domainv1beta1.RegistrationCertReady),
+					Status: condition.ToStatus(tlsResult != nil),
+				})
+			}
+			if tlsResult == nil {
+				requeueDeadline.Set(r.Now().Add(10 * time.Second))
+			} else {
+				certSecretName = &tlsResult.CertSecretName
+			}
+		} else {
+			released, err := r.TLSProvider.Release(ctx, &reg)
+			if err != nil {
+				conditions = append(conditions, api.Condition{
+					Type:    string(domainv1beta1.RegistrationCertReady),
+					Status:  metav1.ConditionUnknown,
+					Message: err.Error(),
+				})
+			} else {
+				conditions = append(conditions, api.Condition{
+					Type:   string(domainv1beta1.RegistrationCertReady),
+					Status: condition.ToStatus(!released),
+				})
+			}
+			if !released {
+				requeueDeadline.Set(r.Now().Add(10 * time.Second))
+			}
+		}
+		reg.Status.CertSecretName = certSecretName
 
 	} else {
 		doFinalize = true
@@ -146,7 +194,7 @@ func (r *CustomDomainRegistrationReconciler) Reconcile(req ctrl.Request) (ctrl.R
 		return ctrl.Result{}, err
 	}
 
-	return ctrl.Result{RequeueAfter: requeueAfter}, nil
+	return ctrl.Result{RequeueAfter: requeueDeadline.Duration(r.Now().Time)}, nil
 }
 
 func (r *CustomDomainRegistrationReconciler) SetupWithManager(mgr ctrl.Manager) error {

@@ -27,6 +27,9 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	cm "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1alpha2"
+
 	// +kubebuilder:scaffold:imports
 
 	domainv1beta1 "github.com/skygeario/k8s-controller/api/v1beta1"
@@ -42,6 +45,7 @@ var (
 
 func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
+	_ = cm.AddToScheme(scheme)
 
 	_ = domainv1beta1.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
@@ -74,12 +78,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	loadBalancer, err := internal.NewLoadBalancer(config)
-	if err != nil {
-		setupLog.Error(err, "unable create load balancer")
-		os.Exit(1)
-	}
-
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,
 		MetricsBindAddress: metricsAddr,
@@ -88,6 +86,18 @@ func main() {
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
+		os.Exit(1)
+	}
+
+	loadBalancer, err := internal.NewLoadBalancer(config)
+	if err != nil {
+		setupLog.Error(err, "unable create load balancer")
+		os.Exit(1)
+	}
+
+	tlsProvider, err := internal.NewTLSProvider(mgr.GetClient(), config)
+	if err != nil {
+		setupLog.Error(err, "unable create TLS provider")
 		os.Exit(1)
 	}
 
@@ -108,6 +118,7 @@ func main() {
 		Now:                        metav1.Now,
 		VerificationTokenGenerator: verification.GenerateDomainToken,
 		DomainVerifier:             verification.VerifyDomain,
+		TLSProvider:                tlsProvider,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CustomDomainRegistration")
 		os.Exit(1)

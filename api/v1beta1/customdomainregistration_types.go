@@ -34,10 +34,12 @@ type CustomDomainRegistrationSpec struct {
 type CustomDomainRegistrationConditionType string
 
 const (
-	// Verified indicates the registration is verified.
+	// RegistrationVerified indicates the registration is verified.
 	RegistrationVerified CustomDomainRegistrationConditionType = "Verified"
-	// Accepted indicates the registration is accepted.
+	// RegistrationAccepted indicates the registration is accepted.
 	RegistrationAccepted CustomDomainRegistrationConditionType = "Accepted"
+	// RegistrationCertReady indicates TLS certificate for the registration is ready.
+	RegistrationCertReady CustomDomainRegistrationConditionType = "CertReady"
 )
 
 // CustomDomainRegistrationStatus defines the observed state of CustomDomainRegistration
@@ -53,6 +55,9 @@ type CustomDomainRegistrationStatus struct {
 	// LastVerificationTime is the time that last verification is performed
 	// +optional
 	LastVerificationTime *metav1.Time `json:"lastVerificationTime,omitempty"`
+	// CertSecretName is the name of TLS certificate secret
+	// +optional
+	CertSecretName *string `json:"certSecretName,omitempty"`
 }
 
 // +kubebuilder:object:root=true

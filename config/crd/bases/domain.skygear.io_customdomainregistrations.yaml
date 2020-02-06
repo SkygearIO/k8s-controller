@@ -50,6 +50,9 @@ spec:
           description: CustomDomainRegistrationStatus defines the observed state of
             CustomDomainRegistration
           properties:
+            certSecretName:
+              description: CertSecretName is the name of TLS certificate secret
+              type: string
             conditions:
               description: Current state of registration.
               items:
