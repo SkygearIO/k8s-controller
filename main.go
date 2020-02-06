@@ -101,6 +101,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	ingressProvider, err := internal.NewIngressProvider(config)
+	if err != nil {
+		setupLog.Error(err, "unable create ingress provider")
+		os.Exit(1)
+	}
+
 	if enableWebhooks {
 		if err = (&domainv1beta1.CustomDomainRegistration{}).SetupWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "CustomDomainRegistration")
@@ -119,6 +125,7 @@ func main() {
 		VerificationTokenGenerator: verification.GenerateDomainToken,
 		DomainVerifier:             verification.VerifyDomain,
 		TLSProvider:                tlsProvider,
+		IngressProvider:            ingressProvider,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CustomDomainRegistration")
 		os.Exit(1)

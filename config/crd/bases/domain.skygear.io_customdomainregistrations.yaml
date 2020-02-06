@@ -37,6 +37,12 @@ spec:
         spec:
           description: CustomDomainRegistrationSpec defines the desired state of CustomDomainRegistration
           properties:
+            backendServiceName:
+              description: BackendServiceName is the name of backend Service.
+              type: string
+            backendServicePort:
+              description: BackendServicePort is the port of backend Service.
+              type: integer
             domainName:
               description: DomainName is the custom domain name registered with the
                 app.
@@ -45,6 +51,9 @@ spec:
               description: VerifyAt is the time that next verification should be performed
               format: date-time
               type: string
+          required:
+          - backendServiceName
+          - backendServicePort
           type: object
         status:
           description: CustomDomainRegistrationStatus defines the observed state of

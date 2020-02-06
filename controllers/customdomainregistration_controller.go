@@ -21,6 +21,7 @@ import (
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -33,6 +34,7 @@ import (
 	"github.com/skygeario/k8s-controller/api"
 	domain "github.com/skygeario/k8s-controller/api"
 	domainv1beta1 "github.com/skygeario/k8s-controller/api/v1beta1"
+	"github.com/skygeario/k8s-controller/pkg/domain/ingress"
 	"github.com/skygeario/k8s-controller/pkg/domain/tls"
 	"github.com/skygeario/k8s-controller/pkg/domain/verification"
 	"github.com/skygeario/k8s-controller/pkg/util/condition"
@@ -51,6 +53,10 @@ type TLSProvider interface {
 	Release(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) (ok bool, err error)
 }
 
+type IngressProvider interface {
+	MakeIngress(reg *domainv1beta1.CustomDomainRegistration) (*networkingv1beta1.Ingress, error)
+}
+
 // CustomDomainRegistrationReconciler reconciles a CustomDomainRegistration object
 type CustomDomainRegistrationReconciler struct {
 	client.Client
@@ -61,6 +67,7 @@ type CustomDomainRegistrationReconciler struct {
 	VerificationTokenGenerator func(key, nonce string) string
 	DomainVerifier             func(ctx context.Context, domain, token string) error
 	TLSProvider                TLSProvider
+	IngressProvider            ingress.Provider
 }
 
 // +kubebuilder:rbac:groups=domain.skygear.io,resources=customdomainregistrations,verbs=get;list;watch;create;update;patch;delete
@@ -162,6 +169,36 @@ func (r *CustomDomainRegistrationReconciler) Reconcile(req ctrl.Request) (ctrl.R
 			}
 		}
 		reg.Status.CertSecretName = certSecretName
+
+		if accepted {
+			ok, err := r.updateIngress(ctx, &reg)
+			if err != nil {
+				conditions = append(conditions, api.Condition{
+					Type:    string(domainv1beta1.RegistrationIngressReady),
+					Status:  metav1.ConditionUnknown,
+					Message: err.Error(),
+				})
+			} else {
+				conditions = append(conditions, api.Condition{
+					Type:   string(domainv1beta1.RegistrationIngressReady),
+					Status: condition.ToStatus(ok),
+				})
+			}
+		} else {
+			ok, err := r.deleteIngress(ctx, &reg)
+			if err != nil {
+				conditions = append(conditions, api.Condition{
+					Type:    string(domainv1beta1.RegistrationIngressReady),
+					Status:  metav1.ConditionUnknown,
+					Message: err.Error(),
+				})
+			} else {
+				conditions = append(conditions, api.Condition{
+					Type:   string(domainv1beta1.RegistrationIngressReady),
+					Status: condition.ToStatus(!ok),
+				})
+			}
+		}
 
 	} else {
 		doFinalize = true
@@ -342,4 +379,55 @@ func (r *CustomDomainRegistrationReconciler) checkAcceptance(ctx context.Context
 
 	accepted = domain.Spec.OwnerApp != nil && *domain.Spec.OwnerApp == reg.Namespace
 	return accepted, nil
+}
+
+func (r *CustomDomainRegistrationReconciler) updateIngress(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) (bool, error) {
+	ingress, err := r.IngressProvider.MakeIngress(reg)
+	if err != nil {
+		return false, err
+	}
+
+	existingIngress := &networkingv1beta1.Ingress{}
+	if err = r.Get(ctx, types.NamespacedName{Namespace: ingress.Namespace, Name: ingress.Name}, existingIngress); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return false, err
+		}
+	}
+
+	if apierrors.IsNotFound(err) {
+		if err = r.Create(ctx, ingress); err != nil {
+			return false, err
+		}
+	} else {
+		existingIngress = existingIngress.DeepCopy()
+		existingIngress.Labels = ingress.Labels
+		existingIngress.Annotations = ingress.Annotations
+		existingIngress.Spec = ingress.Spec
+		if err = r.Update(ctx, existingIngress); err != nil {
+			return false, err
+		}
+	}
+
+	return true, nil
+}
+
+func (r *CustomDomainRegistrationReconciler) deleteIngress(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) (bool, error) {
+	ingress, err := r.IngressProvider.MakeIngress(reg)
+	if err != nil {
+		return false, err
+	}
+
+	existingIngress := &networkingv1beta1.Ingress{}
+	if err = r.Get(ctx, types.NamespacedName{Namespace: ingress.Namespace, Name: ingress.Name}, existingIngress); err != nil {
+		if apierrors.IsNotFound(err) {
+			return true, nil
+		}
+		return false, err
+	}
+
+	if err = r.Delete(ctx, existingIngress); err != nil {
+		return false, err
+	}
+
+	return true, nil
 }

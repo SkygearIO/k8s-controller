@@ -24,7 +24,11 @@ import (
 // CustomDomainRegistrationSpec defines the desired state of CustomDomainRegistration
 type CustomDomainRegistrationSpec struct {
 	// DomainName is the custom domain name registered with the app.
-	DomainName string `json:"domainName,omitempty"`
+	DomainName string `json:"domainName"`
+	// BackendServiceName is the name of backend Service.
+	BackendServiceName string `json:"backendServiceName"`
+	// BackendServicePort is the port of backend Service.
+	BackendServicePort int `json:"backendServicePort"`
 	// VerifyAt is the time that next verification should be performed
 	// +optional
 	VerifyAt *metav1.Time `json:"verifyAt,omitempty"`
@@ -40,6 +44,8 @@ const (
 	RegistrationAccepted CustomDomainRegistrationConditionType = "Accepted"
 	// RegistrationCertReady indicates TLS certificate for the registration is ready.
 	RegistrationCertReady CustomDomainRegistrationConditionType = "CertReady"
+	// RegistrationIngressReady indicates ingress for the registration is ready.
+	RegistrationIngressReady CustomDomainRegistrationConditionType = "IngressReady"
 )
 
 // CustomDomainRegistrationStatus defines the observed state of CustomDomainRegistration
