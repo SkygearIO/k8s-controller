@@ -11,6 +11,10 @@ import (
 	"github.com/skygeario/k8s-controller/pkg/domain/tls/certmanager"
 )
 
+const (
+	tlsCertManager string = "cert-manager"
+)
+
 type TLSProvider struct {
 	CertManager *certmanager.Provider
 }
@@ -34,14 +38,14 @@ func NewTLSProvider(client client.Client, config Config) (*TLSProvider, error) {
 }
 
 func (p *TLSProvider) Provision(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) (*tls.ProvisionResult, error) {
-	provider, err := p.selectProvider(reg)
+	providerType, provider, err := p.selectProvider(reg)
 	if err != nil {
 		return nil, err
 	}
 
 	// release provisioned resources from other providers
-	for _, p := range p.allProviders() {
-		if p.Type() == provider.Type() {
+	for t, p := range p.allProviders() {
+		if t == providerType {
 			continue
 		}
 
@@ -72,12 +76,12 @@ func (p *TLSProvider) Release(ctx context.Context, reg *domainv1beta1.CustomDoma
 	return true, nil
 }
 
-func (p *TLSProvider) allProviders() []tls.Provider {
-	return []tls.Provider{
-		p.CertManager,
+func (p *TLSProvider) allProviders() map[string]tls.Provider {
+	return map[string]tls.Provider{
+		tlsCertManager: p.CertManager,
 	}
 }
 
-func (p *TLSProvider) selectProvider(reg *domainv1beta1.CustomDomainRegistration) (tls.Provider, error) {
-	return p.CertManager, nil
+func (p *TLSProvider) selectProvider(reg *domainv1beta1.CustomDomainRegistration) (string, tls.Provider, error) {
+	return tlsCertManager, p.CertManager, nil
 }

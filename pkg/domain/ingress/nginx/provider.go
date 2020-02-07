@@ -26,8 +26,6 @@ func NewProvider() (*Provider, error) {
 
 var _ ingress.Provider = &Provider{}
 
-func (p *Provider) Type() string { return "nginx" }
-
 func (p *Provider) MakeIngress(reg *domainv1beta1.CustomDomainRegistration) (*networkingv1beta1.Ingress, error) {
 	ingress := networkingv1beta1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{

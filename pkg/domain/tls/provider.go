@@ -7,7 +7,6 @@ import (
 )
 
 type Provider interface {
-	Type() string
 	Provision(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) (*ProvisionResult, error)
 	Release(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) (ok bool, err error)
 }

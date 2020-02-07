@@ -37,8 +37,6 @@ func NewProvider(client client.Client, config Config) (*Provider, error) {
 
 var _ tls.Provider = &Provider{}
 
-func (p *Provider) Type() string { return "certmanager" }
-
 func (p *Provider) Provision(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) (*tls.ProvisionResult, error) {
 	var cert cm.Certificate
 	err := p.KubeClient.Get(ctx, types.NamespacedName{Namespace: reg.Namespace, Name: reg.Name}, &cert)

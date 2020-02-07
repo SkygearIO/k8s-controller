@@ -7,7 +7,6 @@ import (
 )
 
 type Provider interface {
-	Type() string
 	Provision(ctx context.Context, domain *domainv1beta1.CustomDomain) (*ProvisionResult, error)
 	Release(ctx context.Context, domain *domainv1beta1.CustomDomain) (ok bool, err error)
 }

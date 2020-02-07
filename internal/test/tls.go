@@ -30,8 +30,6 @@ func NewTLSProvider(client client.Client) *TLSProvider {
 	}
 }
 
-func (p *TLSProvider) Type() string { return "test" }
-
 func (p *TLSProvider) Provision(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) (*tls.ProvisionResult, error) {
 	n := types.NamespacedName{Namespace: reg.Namespace, Name: reg.Name}
 	reqTime, ok := p.ProvisionRequests[n]

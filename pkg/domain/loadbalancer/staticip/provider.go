@@ -32,8 +32,6 @@ func NewProvider(config Config) (*Provider, error) {
 
 var _ loadbalancer.Provider = &Provider{}
 
-func (p *Provider) Type() string { return "static-ip" }
-
 func (p *Provider) Provision(ctx context.Context, domain *domainv1beta1.CustomDomain) (*loadbalancer.ProvisionResult, error) {
 	rootDomain, err := publicsuffix.EffectiveTLDPlusOne(domain.Name)
 	if err != nil {
