@@ -54,6 +54,7 @@ spec:
           required:
           - backendServiceName
           - backendServicePort
+          - domainName
           type: object
         status:
           description: CustomDomainRegistrationStatus defines the observed state of

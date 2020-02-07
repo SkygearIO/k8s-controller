@@ -43,11 +43,6 @@ import (
 	"github.com/skygeario/k8s-controller/pkg/util/slice"
 )
 
-const (
-	VerificationCooldownSeconds int = 60
-	VerificationTimeoutSeconds  int = 5
-)
-
 type TLSProvider interface {
 	Provision(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) (result *tls.ProvisionResult, err error)
 	Release(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) (ok bool, err error)
@@ -94,9 +89,12 @@ func (r *CustomDomainRegistrationReconciler) Reconcile(req ctrl.Request) (ctrl.R
 			return ctrl.Result{Requeue: true}, nil
 		}
 
-		err = r.registerDomain(ctx, &reg)
+		registered, err := r.registerDomain(ctx, &reg)
 		if err != nil {
 			return ctrl.Result{}, err
+		}
+		if !registered {
+			return ctrl.Result{RequeueAfter: PollInterval}, nil
 		}
 
 		requeueTime, verified, err := r.verifyDomainIfNeeded(ctx, &reg)
@@ -146,7 +144,7 @@ func (r *CustomDomainRegistrationReconciler) Reconcile(req ctrl.Request) (ctrl.R
 				})
 			}
 			if tlsResult == nil {
-				requeueDeadline.Set(r.Now().Add(10 * time.Second))
+				requeueDeadline.Set(r.Now().Add(PollInterval))
 			} else {
 				certSecretName = &tlsResult.CertSecretName
 			}
@@ -165,7 +163,7 @@ func (r *CustomDomainRegistrationReconciler) Reconcile(req ctrl.Request) (ctrl.R
 				})
 			}
 			if !released {
-				requeueDeadline.Set(r.Now().Add(10 * time.Second))
+				requeueDeadline.Set(r.Now().Add(PollInterval))
 			}
 		}
 		reg.Status.CertSecretName = certSecretName
@@ -203,7 +201,7 @@ func (r *CustomDomainRegistrationReconciler) Reconcile(req ctrl.Request) (ctrl.R
 	} else {
 		doFinalize = true
 
-		registered, err := r.unregisterDomain(ctx, &reg)
+		unregistered, err := r.unregisterDomain(ctx, &reg)
 		if err != nil {
 			doFinalize = false
 			conditions = append(conditions, api.Condition{
@@ -211,11 +209,12 @@ func (r *CustomDomainRegistrationReconciler) Reconcile(req ctrl.Request) (ctrl.R
 				Status:  metav1.ConditionUnknown,
 				Message: err.Error(),
 			})
+			requeueDeadline.Set(r.Now().Add(PollInterval))
 		} else {
-			doFinalize = doFinalize && !registered
+			doFinalize = doFinalize && unregistered
 			conditions = append(conditions, api.Condition{
 				Type:   string(domainv1beta1.RegistrationAccepted),
-				Status: condition.ToStatus(registered),
+				Status: condition.ToStatus(!unregistered),
 			})
 		}
 	}
@@ -253,11 +252,15 @@ func (r *CustomDomainRegistrationReconciler) SetupWithManager(mgr ctrl.Manager) 
 		Complete(r)
 }
 
-func (r *CustomDomainRegistrationReconciler) registerDomain(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) error {
+func (r *CustomDomainRegistrationReconciler) registerDomain(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) (registered bool, err error) {
 	var domain domainv1beta1.CustomDomain
-	err := r.Get(ctx, types.NamespacedName{Name: reg.Name}, &domain)
+	err = r.Get(ctx, types.NamespacedName{Name: reg.Spec.DomainName}, &domain)
 	if err != nil && !apierrors.IsNotFound(err) {
-		return err
+		return false, err
+	}
+
+	if domain.DeletionTimestamp != nil {
+		return false, nil
 	}
 
 	regRef := corev1.ObjectReference{
@@ -277,26 +280,26 @@ func (r *CustomDomainRegistrationReconciler) registerDomain(ctx context.Context,
 			},
 		}
 		if err := r.Create(ctx, &domain); err != nil {
-			return err
+			return false, err
 		}
 	} else {
 		if !slice.ContainsObjectReference(domain.Spec.Registrations, reg) {
 			patch := client.MergeFrom(domain.DeepCopy())
 			domain.Spec.Registrations = append(domain.Spec.Registrations, regRef)
 			if err := r.Patch(ctx, &domain, patch); err != nil {
-				return err
+				return false, err
 			}
 		}
 	}
 
-	return nil
+	return true, nil
 }
 
 func (r *CustomDomainRegistrationReconciler) unregisterDomain(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) (registered bool, err error) {
 	var domain domainv1beta1.CustomDomain
-	err = r.Get(ctx, types.NamespacedName{Name: reg.Name}, &domain)
+	err = r.Get(ctx, types.NamespacedName{Name: reg.Spec.DomainName}, &domain)
 	if apierrors.IsNotFound(err) {
-		return false, nil
+		return true, nil
 	}
 	if err != nil {
 		return false, err
@@ -311,21 +314,23 @@ func (r *CustomDomainRegistrationReconciler) unregisterDomain(ctx context.Contex
 	}
 
 	registered = slice.ContainsObjectReference(domain.Spec.Registrations, reg)
-	return registered, nil
+	return !registered, nil
 }
 
 func (r *CustomDomainRegistrationReconciler) verifyDomainIfNeeded(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) (requeueTime *time.Time, verified bool, err error) {
 	var domain domainv1beta1.CustomDomain
-	err = r.Get(ctx, types.NamespacedName{Name: reg.Name}, &domain)
+	err = r.Get(ctx, types.NamespacedName{Name: reg.Spec.DomainName}, &domain)
 	if err != nil {
 		return nil, false, err
 	}
 
-	if domain.Spec.VerificationKey == nil || domain.Status.LoadBalancer == nil {
+	if domain.Spec.VerificationKey == nil ||
+		domain.Status.LoadBalancer == nil ||
+		len(domain.Status.LoadBalancer.DNSRecords) == 0 {
 		return nil, false, nil
 	}
 
-	token := r.VerificationTokenGenerator(*domain.Spec.VerificationKey, string(reg.UID))
+	token := r.VerificationTokenGenerator(*domain.Spec.VerificationKey, string(reg.Namespace))
 	dnsRecordName, err := verification.MakeDNSRecordName(domain.Name)
 	if err != nil {
 		return nil, false, err
@@ -345,21 +350,23 @@ func (r *CustomDomainRegistrationReconciler) verifyDomainIfNeeded(ctx context.Co
 	}
 
 	now := r.Now()
+	now = metav1.Unix(now.Unix(), 0) // truncate to seconds
 	if reg.Spec.VerifyAt == nil ||
 		(reg.Status.LastVerificationTime != nil && reg.Status.LastVerificationTime.After(reg.Spec.VerifyAt.Time)) {
 		return nil, currentVerified, nil
 	}
 	verifyTime := reg.Spec.VerifyAt.Time
 	if reg.Status.LastVerificationTime != nil &&
-		verifyTime.Before(reg.Status.LastVerificationTime.Add(time.Duration(VerificationCooldownSeconds)*time.Second)) {
-		verifyTime = reg.Status.LastVerificationTime.Add(time.Duration(VerificationCooldownSeconds) * time.Second)
+		verifyTime.Before(reg.Status.LastVerificationTime.Add(VerificationCooldown)) {
+		// Too quick, apply cooldown period
+		verifyTime = reg.Status.LastVerificationTime.Add(VerificationCooldown)
 	}
 	if !now.After(verifyTime) {
 		return &verifyTime, currentVerified, nil
 	}
 
 	err = func() error {
-		verifyCtx, cancel := context.WithTimeout(ctx, time.Duration(VerificationTimeoutSeconds)*time.Second)
+		verifyCtx, cancel := context.WithTimeout(ctx, VerificationTimeout)
 		defer cancel()
 		return r.DomainVerifier(verifyCtx, domain.Name, token)
 	}()
@@ -372,7 +379,7 @@ func (r *CustomDomainRegistrationReconciler) verifyDomainIfNeeded(ctx context.Co
 
 func (r *CustomDomainRegistrationReconciler) checkAcceptance(ctx context.Context, reg *domainv1beta1.CustomDomainRegistration) (accepted bool, err error) {
 	var domain domainv1beta1.CustomDomain
-	err = r.Get(ctx, types.NamespacedName{Name: reg.Name}, &domain)
+	err = r.Get(ctx, types.NamespacedName{Name: reg.Spec.DomainName}, &domain)
 	if err != nil {
 		return false, err
 	}

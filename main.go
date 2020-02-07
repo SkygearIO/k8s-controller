@@ -134,6 +134,7 @@ func main() {
 		Client:                   mgr.GetClient(),
 		Log:                      ctrl.Log.WithName("controllers").WithName("CustomDomain"),
 		Scheme:                   mgr.GetScheme(),
+		Now:                      metav1.Now,
 		LoadBalancer:             loadBalancer,
 		VerificationKeyGenerator: verification.GenerateDomainKey,
 	}).SetupWithManager(mgr); err != nil {

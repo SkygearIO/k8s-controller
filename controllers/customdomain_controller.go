@@ -17,7 +17,6 @@ package controllers
 
 import (
 	"context"
-	"time"
 
 	"github.com/go-logr/logr"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -33,6 +32,7 @@ import (
 	domainv1beta1 "github.com/skygeario/k8s-controller/api/v1beta1"
 	"github.com/skygeario/k8s-controller/pkg/domain/loadbalancer"
 	"github.com/skygeario/k8s-controller/pkg/util/condition"
+	"github.com/skygeario/k8s-controller/pkg/util/deadline"
 	"github.com/skygeario/k8s-controller/pkg/util/finalizer"
 	"github.com/skygeario/k8s-controller/pkg/util/slice"
 )
@@ -47,6 +47,7 @@ type CustomDomainReconciler struct {
 	client.Client
 	Log                      logr.Logger
 	Scheme                   *runtime.Scheme
+	Now                      func() metav1.Time
 	LoadBalancer             LoadBalancer
 	VerificationKeyGenerator func() string
 }
@@ -69,7 +70,7 @@ func (r *CustomDomainReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error
 
 	var conditions []api.Condition
 	doFinalize := false
-	var requeueAfter time.Duration
+	var requeueDeadline deadline.Deadline
 
 	if d.DeletionTimestamp == nil {
 		finalizerAdded, err := finalizer.Ensure(r, ctx, &d, domain.DomainFinalizer)
@@ -102,7 +103,7 @@ func (r *CustomDomainReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error
 				Status: condition.ToStatus(provisioned),
 			})
 			if !provisioned {
-				requeueAfter = 5 * time.Second
+				requeueDeadline.Set(r.Now().Add(PollInterval))
 			}
 		}
 
@@ -129,8 +130,13 @@ func (r *CustomDomainReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error
 				Status: condition.ToStatus(!released),
 			})
 		}
+		if !released {
+			requeueDeadline.Set(r.Now().Add(PollInterval))
+		}
 	}
 
+	condition.MergeFrom(conditions, d.Status.Conditions)
+	d.Status.Conditions = conditions
 	if err := r.Status().Update(ctx, &d); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -140,7 +146,7 @@ func (r *CustomDomainReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error
 		return ctrl.Result{}, err
 	}
 
-	return ctrl.Result{RequeueAfter: requeueAfter}, nil
+	return ctrl.Result{RequeueAfter: requeueDeadline.Duration(r.Now().Time)}, nil
 }
 
 func (r *CustomDomainReconciler) SetupWithManager(mgr ctrl.Manager) error {

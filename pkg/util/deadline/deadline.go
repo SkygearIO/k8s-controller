@@ -14,8 +14,14 @@ func (d *Deadline) Set(t time.Time) {
 
 func (d *Deadline) Duration(from time.Time) time.Duration {
 	if d.t == nil {
-		return time.Duration(0)
+		// no deadline
+		return 0
 	} else {
-		return d.t.Sub(from)
+		duration := d.t.Sub(from)
+		if duration <= 0 {
+			// has expired deadline, use epsilon value
+			duration = 1
+		}
+		return duration
 	}
 }
