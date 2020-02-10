@@ -60,7 +60,7 @@ func main() {
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	flag.BoolVar(&enableWebhooks, "enable-webhooks", true, "Enable CRD webhooks.")
-	flag.StringVar(&configFile, "config-file", "", "Path to configuration JSON file.")
+	flag.StringVar(&configFile, "config-file", "config.json", "Path to configuration JSON file.")
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(func(o *zap.Options) {

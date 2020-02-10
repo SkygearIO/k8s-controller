@@ -1,0 +1,10 @@
+{
+    "StaticIP": {
+        "IPAddresses": [
+            "127.0.0.1"
+        ]
+    },
+    "CertManager": {
+        "ClusterIssuerName": "cluster-issuer"
+    }
+}
