@@ -32,9 +32,11 @@ var _ = Describe("Custom Domain", func() {
 						Name:      domain,
 					},
 					Spec: domainv1beta1.CustomDomainRegistrationSpec{
-						DomainName:         domain,
-						BackendServiceName: backendName,
-						BackendServicePort: backendPort,
+						DomainName: domain,
+						DomainConfig: domainv1beta1.CustomDomainConfig{
+							BackendServiceName: backendName,
+							BackendServicePort: backendPort,
+						},
 					},
 				}
 				Expect(k8sClient.Create(ctx, r)).Should(Succeed())
@@ -349,9 +351,11 @@ var _ = Describe("Custom Domain", func() {
 					Name:      "my-app.test",
 				},
 				Spec: domainv1beta1.CustomDomainRegistrationSpec{
-					DomainName:         "my-app.test",
-					BackendServiceName: "app",
-					BackendServicePort: 80,
+					DomainName: "my-app.test",
+					DomainConfig: domainv1beta1.CustomDomainConfig{
+						BackendServiceName: "app",
+						BackendServicePort: 80,
+					},
 				},
 			}
 			Expect(k8sClient.Create(ctx, r.DeepCopy())).Should(Succeed())

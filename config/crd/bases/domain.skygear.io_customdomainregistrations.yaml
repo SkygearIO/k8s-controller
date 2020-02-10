@@ -37,12 +37,26 @@ spec:
         spec:
           description: CustomDomainRegistrationSpec defines the desired state of CustomDomainRegistration
           properties:
-            backendServiceName:
-              description: BackendServiceName is the name of backend Service.
-              type: string
-            backendServicePort:
-              description: BackendServicePort is the port of backend Service.
-              type: integer
+            domainConfig:
+              description: DomainConfig is the configuration of custom domain
+              properties:
+                backendServiceName:
+                  description: BackendServiceName is the name of backend Service.
+                  type: string
+                backendServicePort:
+                  description: BackendServicePort is the port of backend Service.
+                  type: integer
+                certSecretName:
+                  description: CertSecretName of the name of Secret storing custom
+                    TLS certificate
+                  type: string
+                redirectToURL:
+                  description: RedirectToURL is where to redirect the user
+                  type: string
+              required:
+              - backendServiceName
+              - backendServicePort
+              type: object
             domainName:
               description: DomainName is the custom domain name registered with the
                 app.
@@ -52,8 +66,7 @@ spec:
               format: date-time
               type: string
           required:
-          - backendServiceName
-          - backendServicePort
+          - domainConfig
           - domainName
           type: object
         status:

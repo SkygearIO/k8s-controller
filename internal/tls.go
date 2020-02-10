@@ -9,14 +9,17 @@ import (
 	domainv1beta1 "github.com/skygeario/k8s-controller/api/v1beta1"
 	"github.com/skygeario/k8s-controller/pkg/domain/tls"
 	"github.com/skygeario/k8s-controller/pkg/domain/tls/certmanager"
+	"github.com/skygeario/k8s-controller/pkg/domain/tls/usersecret"
 )
 
 const (
 	tlsCertManager string = "cert-manager"
+	tlsUserSecret  string = "user-secret"
 )
 
 type TLSProvider struct {
 	CertManager *certmanager.Provider
+	UserSecret  *usersecret.Provider
 }
 
 func NewTLSProvider(client client.Client, config Config) (*TLSProvider, error) {
@@ -32,8 +35,15 @@ func NewTLSProvider(client client.Client, config Config) (*TLSProvider, error) {
 		return nil, fmt.Errorf("cert-manager config is missing")
 	}
 
+	var userSecret *usersecret.Provider
+	userSecret, err = usersecret.NewProvider()
+	if err != nil {
+		return nil, fmt.Errorf("cannot create user secret certificate provider: %w", err)
+	}
+
 	return &TLSProvider{
 		CertManager: certManager,
+		UserSecret:  userSecret,
 	}, nil
 }
 
@@ -79,9 +89,13 @@ func (p *TLSProvider) Release(ctx context.Context, reg *domainv1beta1.CustomDoma
 func (p *TLSProvider) allProviders() map[string]tls.Provider {
 	return map[string]tls.Provider{
 		tlsCertManager: p.CertManager,
+		tlsUserSecret:  p.UserSecret,
 	}
 }
 
 func (p *TLSProvider) selectProvider(reg *domainv1beta1.CustomDomainRegistration) (string, tls.Provider, error) {
+	if reg.Spec.DomainConfig.CertSecretName != nil {
+		return tlsUserSecret, p.UserSecret, nil
+	}
 	return tlsCertManager, p.CertManager, nil
 }

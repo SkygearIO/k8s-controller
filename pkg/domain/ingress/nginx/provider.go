@@ -45,8 +45,8 @@ func (p *Provider) MakeIngress(reg *domainv1beta1.CustomDomainRegistration) (*ne
 								networkingv1beta1.HTTPIngressPath{
 									Path: "/",
 									Backend: networkingv1beta1.IngressBackend{
-										ServiceName: reg.Spec.BackendServiceName,
-										ServicePort: intstr.FromInt(reg.Spec.BackendServicePort),
+										ServiceName: reg.Spec.DomainConfig.BackendServiceName,
+										ServicePort: intstr.FromInt(reg.Spec.DomainConfig.BackendServicePort),
 									},
 								},
 							},
@@ -65,6 +65,12 @@ func (p *Provider) MakeIngress(reg *domainv1beta1.CustomDomainRegistration) (*ne
 
 	if err := ctrl.SetControllerReference(reg, &ingress, scheme); err != nil {
 		return nil, err
+	}
+
+	if reg.Spec.DomainConfig.RedirectToURL != nil {
+		url := *reg.Spec.DomainConfig.RedirectToURL
+		ingress.Annotations["nginx.ingress.kubernetes.io/permanent-redirect"] = url
+		ingress.Annotations["nginx.ingress.kubernetes.io/permanent-redirect-code"] = "307"
 	}
 
 	if reg.Status.CertSecretName != nil {

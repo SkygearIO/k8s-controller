@@ -21,14 +21,23 @@ import (
 	"github.com/skygeario/k8s-controller/api"
 )
 
-// CustomDomainRegistrationSpec defines the desired state of CustomDomainRegistration
-type CustomDomainRegistrationSpec struct {
-	// DomainName is the custom domain name registered with the app.
-	DomainName string `json:"domainName"`
+type CustomDomainConfig struct {
 	// BackendServiceName is the name of backend Service.
 	BackendServiceName string `json:"backendServiceName"`
 	// BackendServicePort is the port of backend Service.
 	BackendServicePort int `json:"backendServicePort"`
+	// CertSecretName of the name of Secret storing custom TLS certificate
+	CertSecretName *string `json:"certSecretName,omitempty"`
+	// RedirectToURL is where to redirect the user
+	RedirectToURL *string `json:"redirectToURL,omitempty"`
+}
+
+// CustomDomainRegistrationSpec defines the desired state of CustomDomainRegistration
+type CustomDomainRegistrationSpec struct {
+	// DomainName is the custom domain name registered with the app.
+	DomainName string `json:"domainName"`
+	// DomainConfig is the configuration of custom domain
+	DomainConfig CustomDomainConfig `json:"domainConfig"`
 	// VerifyAt is the time that next verification should be performed
 	// +optional
 	VerifyAt *metav1.Time `json:"verifyAt,omitempty"`
